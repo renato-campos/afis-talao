@@ -9,8 +9,8 @@ import tempfile
 from datetime import datetime
 
 
-class BOMonitor:
-    """Classe para gerenciar cada BO individualmente"""
+class TalaoMonitor:
+    """Classe para gerenciar cada Talão individualmente"""
 
     def __init__(self, app, item_id, dados, tempo_segundos):
         self.app = app
@@ -226,7 +226,7 @@ class AFISDashboard:
         ), tags=('ativo',))
 
         # 4. Cria o Robô (Monitor)
-        novo_monitor = BOMonitor(self, item_id, dados, tempo_seg)
+        novo_monitor = TalaoMonitor(self, item_id, dados, tempo_seg)
         self.monitores_ativos[item_id] = novo_monitor
 
         # 5. Limpa campos
