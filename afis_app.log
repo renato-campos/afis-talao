@@ -1,0 +1,55 @@
+2026-02-18 21:11:35,959 ERROR __main__ - Falha na inicialização da aplicação
+Traceback (most recent call last):
+  File "d:\projetos\afis-talao\main.py", line 19, in main
+    repository = SQLServerRepository()
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 22, in __init__
+    self.ensure_schema_is_ready()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 66, in ensure_schema_is_ready
+    with self._connect() as conn:
+         ~~~~~~~~~~~~~^^
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 63, in _connect
+    return pyodbc.connect(self.connection_string, autocommit=False)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('08001', '[08001] [Microsoft][ODBC Driver 18 for SQL Server]SSL Provider: A cadeia de certificação foi emitida por uma autoridade que não é de confiança.\r\n (-2146893019) (SQLDriverConnect); [08001] [Microsoft][ODBC Driver 18 for SQL Server]Client unable to establish connection. For solutions related to encryption errors, see https://go.microsoft.com/fwlink/?linkid=2226722 (-2146893019)')
+2026-02-18 21:11:47,222 ERROR __main__ - Falha na inicialização da aplicação
+Traceback (most recent call last):
+  File "d:\projetos\afis-talao\main.py", line 19, in main
+    repository = SQLServerRepository()
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 22, in __init__
+    self.ensure_schema_is_ready()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 66, in ensure_schema_is_ready
+    with self._connect() as conn:
+         ~~~~~~~~~~~~~^^
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 63, in _connect
+    return pyodbc.connect(self.connection_string, autocommit=False)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('08001', '[08001] [Microsoft][ODBC Driver 18 for SQL Server]SSL Provider: A cadeia de certificação foi emitida por uma autoridade que não é de confiança.\r\n (-2146893019) (SQLDriverConnect); [08001] [Microsoft][ODBC Driver 18 for SQL Server]Client unable to establish connection. For solutions related to encryption errors, see https://go.microsoft.com/fwlink/?linkid=2226722 (-2146893019)')
+2026-02-18 21:12:16,034 ERROR __main__ - Falha na inicialização da aplicação
+Traceback (most recent call last):
+  File "d:\projetos\afis-talao\main.py", line 19, in main
+    repository = SQLServerRepository()
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 22, in __init__
+    self.ensure_schema_is_ready()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 66, in ensure_schema_is_ready
+    with self._connect() as conn:
+         ~~~~~~~~~~~~~^^
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 63, in _connect
+    return pyodbc.connect(self.connection_string, autocommit=False)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('08001', '[08001] [Microsoft][ODBC Driver 18 for SQL Server]SSL Provider: A cadeia de certificação foi emitida por uma autoridade que não é de confiança.\r\n (-2146893019) (SQLDriverConnect); [08001] [Microsoft][ODBC Driver 18 for SQL Server]Client unable to establish connection. For solutions related to encryption errors, see https://go.microsoft.com/fwlink/?linkid=2226722 (-2146893019)')
+2026-02-18 21:13:29,000 ERROR __main__ - Falha na inicialização da aplicação
+Traceback (most recent call last):
+  File "d:\projetos\afis-talao\main.py", line 19, in main
+    repository = SQLServerRepository()
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 22, in __init__
+    self.ensure_schema_is_ready()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 66, in ensure_schema_is_ready
+    with self._connect() as conn:
+         ~~~~~~~~~~~~~^^
+  File "d:\projetos\afis-talao\afis_app\repository.py", line 62, in _connect
+    raise DatabaseError("pyodbc não está instalado.")
+afis_app.repository.DatabaseError: pyodbc não está instalado.
