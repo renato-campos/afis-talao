@@ -279,18 +279,21 @@ class SQLServerRepository:
         WITH ultimo AS (
             SELECT TOP 1 id
             FROM dbo.taloes
-            ORDER BY ano DESC, talao DESC
+            ORDER BY ano DESC, talao DESC, id DESC
+        ),
+        limite AS (
+            SELECT CAST(DATEADD(DAY, -1, CAST(GETDATE() AS DATE)) AS DATE) AS data_limite
         )
         SELECT t.id, t.ano, t.talao, t.boletim, t.delegacia, t.natureza, t.status
         FROM dbo.taloes t
-        WHERE t.data_solic >= CAST(DATEADD(DAY, -1, CAST(GETDATE() AS DATE)) AS DATE)
-           OR t.status = 'monitorado'
-           OR t.id IN (SELECT id FROM ultimo)
+        WHERE t.id IN (SELECT id FROM ultimo)
+           OR LOWER(LTRIM(RTRIM(ISNULL(t.status, '')))) = ?
+           OR t.data_solic >= (SELECT data_limite FROM limite)
         ORDER BY t.ano DESC, t.talao DESC;
         """
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute(query)
+            cur.execute(query, STATUS_MONITORADO)
             return cur.fetchall()
 
     def list_due_monitoring(self):

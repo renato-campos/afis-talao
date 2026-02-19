@@ -373,6 +373,8 @@ class AFISDashboard:
             self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
             return
 
+        # Processa apenas um alerta por ciclo para evitar sequência de pop-ups
+        # e garantir foco no preenchimento/validação do talão em questão.
         for row in due_rows:
             talao_id, intervalo_min, ano, talao, boletim, status = row
             if status != STATUS_MONITORADO:
@@ -389,6 +391,7 @@ class AFISDashboard:
                 self._tentar_finalizar_por_alerta(talao_id, intervalo_min)
             else:
                 self.repo.postpone_monitoring(talao_id, intervalo_min)
+            break
 
         self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
 
@@ -418,6 +421,7 @@ class AFISDashboard:
         except ValueError as exc:
             messagebox.showwarning("Validação", str(exc))
             self.repo.postpone_monitoring(talao_id, intervalo_min)
+            TalaoEditor(self.root, self.repo, talao_id, intervalo_min, self.refresh_tree)
             return
 
         if missing:
@@ -427,6 +431,7 @@ class AFISDashboard:
                 + "\n- ".join(missing),
             )
             self.repo.postpone_monitoring(talao_id, intervalo_min)
+            TalaoEditor(self.root, self.repo, talao_id, intervalo_min, self.refresh_tree)
             return
 
         try:
