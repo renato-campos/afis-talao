@@ -212,7 +212,6 @@ class AFISDashboard:
             "vitimas",
             "equipe",
             "operador",
-            "status",
             "observacao",
         ]
 
