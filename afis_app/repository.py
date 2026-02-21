@@ -22,17 +22,24 @@ class SQLServerRepository:
         self.ensure_schema_is_ready()
 
     def _build_connection_string(self):
-        driver = get_env("DB_DRIVER", "AFIS_SQL_DRIVER", default="ODBC Driver 18 for SQL Server")
+        driver = get_env("DB_DRIVER", default="ODBC Driver 18 for SQL Server")
         driver = str(driver).strip("{}")
-        server = get_env("DB_SERVER", "AFIS_SQL_SERVER", default="localhost")
-        database = get_env("DB_NAME", "AFIS_SQL_DATABASE", default="AFIS")
-        user = get_env("DB_USER", "AFIS_SQL_USER")
-        password = get_env("DB_PASSWORD", "AFIS_SQL_PASSWORD")
-        trusted = get_env("DB_TRUSTED", "AFIS_SQL_TRUSTED", default="1")
-        encrypt = self._to_yes_no(get_env("DB_ENCRYPT", "AFIS_SQL_ENCRYPT", default="yes"))
-        trust_server_certificate = self._to_yes_no(
-            get_env("DB_TRUST_SERVER_CERT", "AFIS_SQL_TRUST_SERVER_CERT", default="no")
-        )
+        server = get_env("DB_SERVER")
+        database = get_env("DB_NAME")
+        user = get_env("DB_USER")
+        password = get_env("DB_PASSWORD")
+        trusted = get_env("DB_TRUSTED", default="1")
+        encrypt = self._to_yes_no(get_env("DB_ENCRYPT", default="yes"))
+        trust_server_certificate = self._to_yes_no(get_env("DB_TRUST_SERVER_CERT", default="no"))
+
+        if not server:
+            raise DatabaseError("Variável DB_SERVER não configurada no arquivo .env.")
+        if not database:
+            raise DatabaseError("Variável DB_NAME não configurada no arquivo .env.")
+        if user and not password:
+            raise DatabaseError("DB_USER configurado sem DB_PASSWORD no arquivo .env.")
+        if password and not user:
+            raise DatabaseError("DB_PASSWORD configurado sem DB_USER no arquivo .env.")
 
         if user and password:
             return (
