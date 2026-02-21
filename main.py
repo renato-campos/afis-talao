@@ -10,6 +10,7 @@ def main():
     load_env_file()
     logging.basicConfig(
         filename="afis_app.log",
+        encoding="utf-8",
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s - %(message)s",
     )
