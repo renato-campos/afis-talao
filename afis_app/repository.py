@@ -16,6 +16,14 @@ class DatabaseError(Exception):
     pass
 
 
+class ConcurrencyError(DatabaseError):
+    pass
+
+
+class DuplicateTalaoError(DatabaseError):
+    pass
+
+
 class SQLServerRepository:
     def __init__(self):
         self.connection_string = self._build_connection_string()
@@ -159,32 +167,39 @@ class SQLServerRepository:
             row = cur.fetchone()
             proximo_talao = self._to_int(row[0] if row else None, "sequencia do talao")
 
-            cur.execute(
-                """
-                INSERT INTO dbo.taloes (
-                    ano, talao, data_solic, hora_solic, delegacia, autoridade, solicitante,
-                    endereco, boletim, natureza, data_bo, vitimas, equipe, operador, status, observacao, atualizado_em
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO dbo.taloes (
+                        ano, talao, data_solic, hora_solic, delegacia, autoridade, solicitante,
+                        endereco, boletim, natureza, data_bo, vitimas, equipe, operador, status, observacao, atualizado_em
+                    )
+                    OUTPUT INSERTED.id
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSUTCDATETIME())
+                    """,
+                    ano,
+                    proximo_talao,
+                    payload["data_solic"],
+                    payload["hora_solic"],
+                    payload["delegacia"],
+                    payload["autoridade"],
+                    payload["solicitante"],
+                    payload["endereco"],
+                    payload["boletim"],
+                    payload["natureza"],
+                    payload["data_bo"],
+                    payload["vitimas"],
+                    payload["equipe"],
+                    payload["operador"],
+                    payload["status"],
+                    payload["observacao"],
                 )
-                OUTPUT INSERTED.id
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSUTCDATETIME())
-                """,
-                ano,
-                proximo_talao,
-                payload["data_solic"],
-                payload["hora_solic"],
-                payload["delegacia"],
-                payload["autoridade"],
-                payload["solicitante"],
-                payload["endereco"],
-                payload["boletim"],
-                payload["natureza"],
-                payload["data_bo"],
-                payload["vitimas"],
-                payload["equipe"],
-                payload["operador"],
-                payload["status"],
-                payload["observacao"],
-            )
+            except Exception as exc:
+                if self._is_unique_key_violation(exc):
+                    raise DuplicateTalaoError(
+                        "Outro terminal inseriu este número de talão antes. Atualize a tela e tente novamente."
+                    ) from exc
+                raise
             row = cur.fetchone()
             talao_id = self._to_int(row[0] if row else None, "id do talão inserido")
 
@@ -192,22 +207,25 @@ class SQLServerRepository:
             conn.commit()
             return proximo_talao
 
-    def update_talao(self, talao_id, data, intervalo_min):
+    def update_talao(self, talao_id, data, intervalo_min, expected_updated_at=None):
         payload = self._build_db_payload(data)
         novo_ano = payload["ano"]
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT ano, status FROM dbo.taloes WHERE id = ?", talao_id)
+            cur.execute("SELECT ano, status, atualizado_em FROM dbo.taloes WHERE id = ?", talao_id)
             row = cur.fetchone()
             if not row:
                 raise DatabaseError("Talão não encontrado para atualização.")
             ano_atual = self._to_int(row[0], "ano atual do talão")
             status_atual = str(row[1]).strip().lower() if len(row) > 1 and row[1] is not None else ""
+            atualizado_em_atual = row[2] if len(row) > 2 else None
             if status_atual in (STATUS_FINALIZADO, STATUS_CANCELADO):
                 raise DatabaseError("Talões finalizados ou cancelados não podem ser editados.")
             if novo_ano != ano_atual:
                 raise DatabaseError("Não é permitido alterar o ano do talão na edição.")
+            if expected_updated_at is not None and atualizado_em_atual != expected_updated_at:
+                raise ConcurrencyError("Talão alterado em outro terminal. Recarregue e tente novamente.")
 
             cur.execute(
                 """
@@ -228,6 +246,7 @@ class SQLServerRepository:
                     observacao = ?,
                     atualizado_em = SYSUTCDATETIME()
                 WHERE id = ?
+                  AND atualizado_em = ?
                 """,
                 payload["data_solic"],
                 payload["hora_solic"],
@@ -244,9 +263,16 @@ class SQLServerRepository:
                 payload["status"],
                 payload["observacao"],
                 talao_id,
+                atualizado_em_atual,
             )
+            if cur.rowcount == 0:
+                raise ConcurrencyError("Talão alterado em outro terminal. Recarregue e tente novamente.")
             self._sync_monitoramento(cur, talao_id, payload["status"], intervalo_min)
             conn.commit()
+
+    def _is_unique_key_violation(self, exc):
+        message = str(exc).lower()
+        return "uq_taloes_ano_talao" in message or "unique" in message or "2601" in message or "2627" in message
 
     def _sync_monitoramento(self, cur, talao_id, status, intervalo_min):
         if status == STATUS_MONITORADO:

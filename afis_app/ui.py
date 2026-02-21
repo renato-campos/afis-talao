@@ -19,6 +19,7 @@ from .constants import (
     STATUS_MONITORADO,
     STATUS_OPCOES,
 )
+from .repository import ConcurrencyError, DuplicateTalaoError
 from .validators import normalize_and_validate
 
 logger = logging.getLogger(__name__)
@@ -148,7 +149,16 @@ class TalaoEditor(tk.Toplevel):
             return
 
         try:
-            self.repo.update_talao(self.talao_id, normalized, int(self.intervalo_var.get()))
+            self.repo.update_talao(
+                self.talao_id,
+                normalized,
+                int(self.intervalo_var.get()),
+                expected_updated_at=self.record.get("atualizado_em"),
+            )
+            self.on_saved()
+            self.destroy()
+        except ConcurrencyError as exc:
+            messagebox.showwarning("Conflito de edição", str(exc))
             self.on_saved()
             self.destroy()
         except Exception:
@@ -158,6 +168,7 @@ class TalaoEditor(tk.Toplevel):
 
 class AFISDashboard:
     ALERT_POLL_MS = 60000
+    AUTO_REFRESH_MS = 60000
 
     def __init__(self, root, repo):
         self.root = root
@@ -175,6 +186,7 @@ class AFISDashboard:
         self._build_layout()
         self._set_defaults()
         self.refresh_tree()
+        self.root.after(self.AUTO_REFRESH_MS, self._auto_refresh)
         self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
 
     def _build_layout(self):
@@ -334,6 +346,9 @@ class AFISDashboard:
             messagebox.showinfo("Sucesso", f"Talão {format_talao(now.year, novo_talao)} registrado com status monitorado.")
             self._set_defaults()
             self.refresh_tree()
+        except DuplicateTalaoError as exc:
+            messagebox.showwarning("Conflito de numeração", str(exc))
+            self.refresh_tree()
         except Exception:
             logger.exception("Falha ao gravar novo talão")
             messagebox.showerror("Erro", "Falha ao gravar talão. Verifique os dados e tente novamente.")
@@ -355,7 +370,7 @@ class AFISDashboard:
         intervalo = self.intervalo_map.get(self.alerta_var.get(), DEFAULT_ALERT_INTERVAL_MIN)
         TalaoEditor(self.root, self.repo, talao_id, intervalo, self.refresh_tree)
 
-    def refresh_tree(self):
+    def refresh_tree(self, silent=False):
         for iid in self.tree.get_children():
             self.tree.delete(iid)
 
@@ -363,7 +378,8 @@ class AFISDashboard:
             rows = self.repo.list_initial_taloes()
         except Exception:
             logger.exception("Falha ao carregar talões")
-            messagebox.showerror("Erro", "Falha ao carregar talões.")
+            if not silent:
+                messagebox.showerror("Erro", "Falha ao carregar talões.")
             return
 
         for row in rows:
@@ -377,6 +393,10 @@ class AFISDashboard:
             )
 
         self._refresh_proximo_talao()
+
+    def _auto_refresh(self):
+        self.refresh_tree(silent=True)
+        self.root.after(self.AUTO_REFRESH_MS, self._auto_refresh)
 
     def processar_alertas(self):
         try:
@@ -447,7 +467,15 @@ class AFISDashboard:
             return
 
         try:
-            self.repo.update_talao(talao_id, normalized, intervalo_min)
+            self.repo.update_talao(
+                talao_id,
+                normalized,
+                intervalo_min,
+                expected_updated_at=record.get("atualizado_em"),
+            )
+            self.refresh_tree()
+        except ConcurrencyError as exc:
+            messagebox.showwarning("Conflito de edição", str(exc))
             self.refresh_tree()
         except Exception:
             logger.exception("Falha ao finalizar talão %s", talao_id)
