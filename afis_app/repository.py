@@ -213,22 +213,41 @@ class SQLServerRepository:
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT ano, status, atualizado_em FROM dbo.taloes WHERE id = ?", talao_id)
+            cur.execute("SELECT ano, status FROM dbo.taloes WHERE id = ?", talao_id)
             row = cur.fetchone()
             if not row:
                 raise DatabaseError("Talão não encontrado para atualização.")
             ano_atual = self._to_int(row[0], "ano atual do talão")
             status_atual = str(row[1]).strip().lower() if len(row) > 1 and row[1] is not None else ""
-            atualizado_em_atual = row[2] if len(row) > 2 else None
             if status_atual in (STATUS_FINALIZADO, STATUS_CANCELADO):
                 raise DatabaseError("Talões finalizados ou cancelados não podem ser editados.")
             if novo_ano != ano_atual:
                 raise DatabaseError("Não é permitido alterar o ano do talão na edição.")
-            if expected_updated_at is not None and atualizado_em_atual != expected_updated_at:
-                raise ConcurrencyError("Talão alterado em outro terminal. Recarregue e tente novamente.")
+
+            params = [
+                payload["data_solic"],
+                payload["hora_solic"],
+                payload["delegacia"],
+                payload["autoridade"],
+                payload["solicitante"],
+                payload["endereco"],
+                payload["boletim"],
+                payload["natureza"],
+                payload["data_bo"],
+                payload["vitimas"],
+                payload["equipe"],
+                payload["operador"],
+                payload["status"],
+                payload["observacao"],
+                talao_id,
+            ]
+            where_clause = "WHERE id = ?"
+            if expected_updated_at is not None:
+                where_clause += " AND ABS(DATEDIFF_BIG(NANOSECOND, atualizado_em, ?)) <= 1000"
+                params.append(expected_updated_at)
 
             cur.execute(
-                """
+                f"""
                 UPDATE dbo.taloes
                 SET data_solic = ?,
                     hora_solic = ?,
@@ -245,25 +264,9 @@ class SQLServerRepository:
                     status = ?,
                     observacao = ?,
                     atualizado_em = SYSUTCDATETIME()
-                WHERE id = ?
-                  AND atualizado_em = ?
+                {where_clause}
                 """,
-                payload["data_solic"],
-                payload["hora_solic"],
-                payload["delegacia"],
-                payload["autoridade"],
-                payload["solicitante"],
-                payload["endereco"],
-                payload["boletim"],
-                payload["natureza"],
-                payload["data_bo"],
-                payload["vitimas"],
-                payload["equipe"],
-                payload["operador"],
-                payload["status"],
-                payload["observacao"],
-                talao_id,
-                atualizado_em_atual,
+                *params,
             )
             if cur.rowcount == 0:
                 raise ConcurrencyError("Talão alterado em outro terminal. Recarregue e tente novamente.")
