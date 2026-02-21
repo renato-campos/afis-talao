@@ -23,6 +23,19 @@ from .validators import normalize_and_validate
 
 logger = logging.getLogger(__name__)
 
+ALERT_INTERVAL_OPTIONS = [
+    ("1 min", 1),
+    ("5 min", 5),
+    ("15 min", 15),
+    ("30 min (padrão)", 30),
+    ("60 min", 60),
+]
+DEFAULT_ALERT_INTERVAL_MIN = 30
+DEFAULT_ALERT_INTERVAL_LABEL = next(
+    (label for label, minutes in ALERT_INTERVAL_OPTIONS if minutes == DEFAULT_ALERT_INTERVAL_MIN),
+    ALERT_INTERVAL_OPTIONS[0][0],
+)
+
 
 def format_talao(ano, numero):
     try:
@@ -82,7 +95,12 @@ class TalaoEditor(tk.Toplevel):
             row += 1
 
         tk.Label(self, text="Intervalo de alerta (min)").grid(row=row, column=0, sticky="w", padx=12, pady=8)
-        ttk.Combobox(self, textvariable=self.intervalo_var, state="readonly", values=["1", "5", "15", "30", "60"]).grid(
+        ttk.Combobox(
+            self,
+            textvariable=self.intervalo_var,
+            state="readonly",
+            values=[str(minutes) for _, minutes in ALERT_INTERVAL_OPTIONS],
+        ).grid(
             row=row, column=1, sticky="w", padx=12, pady=8
         )
         row += 1
@@ -148,17 +166,11 @@ class AFISDashboard:
         self.root.title("Registro AFIS - CECOP")
         self.root.geometry("1080x760")
 
-        self.intervalo_map = {
-            "1 min": 1,
-            "5 min": 5,
-            "15 min": 15,
-            "30 min (padrao)": 30,
-            "60 min": 60,
-        }
+        self.intervalo_map = dict(ALERT_INTERVAL_OPTIONS)
 
         self.widgets = {}
         self.proximo_talao_var = tk.StringVar(value="-")
-        self.alerta_var = tk.StringVar(value="30 min (padrão)")
+        self.alerta_var = tk.StringVar(value=DEFAULT_ALERT_INTERVAL_LABEL)
 
         self._build_layout()
         self._set_defaults()
@@ -315,7 +327,7 @@ class AFISDashboard:
             messagebox.showwarning("Validação", "Campos obrigatórios:\n- " + "\n- ".join(missing))
             return
 
-        intervalo = self.intervalo_map[self.alerta_var.get()]
+        intervalo = self.intervalo_map.get(self.alerta_var.get(), DEFAULT_ALERT_INTERVAL_MIN)
 
         try:
             novo_talao = self.repo.insert_talao(normalized, intervalo)
@@ -340,7 +352,7 @@ class AFISDashboard:
             return
 
         talao_id = int(item_id)
-        intervalo = self.intervalo_map[self.alerta_var.get()]
+        intervalo = self.intervalo_map.get(self.alerta_var.get(), DEFAULT_ALERT_INTERVAL_MIN)
         TalaoEditor(self.root, self.repo, talao_id, intervalo, self.refresh_tree)
 
     def refresh_tree(self):
