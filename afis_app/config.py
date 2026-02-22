@@ -3,7 +3,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ENV_FILE_PATH = Path(__file__).resolve().parent / ".env"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ENV_FILE_PATH = PROJECT_ROOT / "assets" / ".env"
 
 
 def load_env_file():
