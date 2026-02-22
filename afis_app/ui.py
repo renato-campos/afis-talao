@@ -57,7 +57,8 @@ UI_THEME = {
     "status_finalizado_fg": "#1E5E36",
     "status_cancelado_bg": "#FDECEC",
     "status_cancelado_fg": "#7F1D1D",
-    "danger": "#C0392B",
+    "danger": "#7F1D1D",
+    "danger_hover": "#6B1111",
 }
 BUTTON_FONT_BOLD = ("Segoe UI", 11, "bold")
 WATERMARK_MAX_WIDTH = 2560
@@ -105,6 +106,7 @@ def _build_button(parent, text, command, variant="neutral", use_ctk=False, width
         "primary": (UI_THEME["primary"], UI_THEME["primary_hover"], UI_THEME["white"]),
         "success": (UI_THEME["success"], UI_THEME["success_hover"], UI_THEME["white"]),
         "warning": (UI_THEME["warning"], UI_THEME["warning_hover"], UI_THEME["white"]),
+        "danger": (UI_THEME["danger"], UI_THEME["danger_hover"], UI_THEME["white"]),
         "neutral": (UI_THEME["neutral"], UI_THEME["neutral_hover"], UI_THEME["text"]),
     }
     fg, hover, text_color = cfg.get(variant, cfg["neutral"])
@@ -766,10 +768,10 @@ class BackupAnoWindow(tk.Toplevel):
             actions.grid(row=2, column=0, columnspan=2, sticky="ew", padx=14, pady=(6, 12))
             ctk.CTkButton(
                 actions,
-                text="Gerar Backup SQL",
+                text="Backup SQL",
                 command=self.gerar_backup,
-                fg_color=UI_THEME["warning"],
-                hover_color=UI_THEME["warning_hover"],
+                fg_color=UI_THEME["danger"],
+                hover_color=UI_THEME["danger_hover"],
                 text_color=UI_THEME["white"],
                 font=BUTTON_FONT_BOLD,
                 width=160,
@@ -803,7 +805,7 @@ class BackupAnoWindow(tk.Toplevel):
             ).grid(row=1, column=1, sticky="ew", pady=(0, 6))
             actions = tk.Frame(frame, bg=UI_THEME["surface"])
             actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
-            _build_button(actions, "Gerar Backup SQL", self.gerar_backup, "warning").pack(side="left")
+            _build_button(actions, "Backup SQL", self.gerar_backup, "danger").pack(side="left")
             _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self.transient(parent)
@@ -1067,10 +1069,10 @@ class AFISDashboard:
         botoes.grid(row=row, column=2, columnspan=2, sticky="ew", padx=4, pady=8)
         self._build_button(botoes, "Salvar", self.criar_talao, "success").pack(side="left", padx=4)
         self._build_button(botoes, "Editar", self.editar_selecionado, "primary").pack(side="left", padx=4)
-        self._build_button(botoes, "Backup", self.abrir_backup, "warning").pack(side="left", padx=4)
-        self._build_button(botoes, "Relatórios", self.abrir_relatorios, "warning").pack(side="left", padx=4)
         self._build_button(botoes, "Atualizar", self.refresh_tree, "neutral").pack(side="left", padx=4)
         self._build_button(botoes, "Limpar", self._set_defaults, "neutral").pack(side="left", padx=4)
+        self._build_button(botoes, "Relatórios", self.abrir_relatorios, "warning").pack(side="left", padx=4)
+        self._build_button(botoes, "Backup", self.abrir_backup, "danger").pack(side="left", padx=4)
 
         for col_idx in (1, 3):
             form.grid_columnconfigure(col_idx, weight=1)

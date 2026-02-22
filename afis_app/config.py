@@ -3,15 +3,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+ENV_FILE_PATH = Path(__file__).resolve().parent / ".env"
+
 
 def load_env_file():
-    base_dir = Path(__file__).resolve().parent
-    candidates = [base_dir.parent / ".env", base_dir / ".env"]
-
-    for env_path in candidates:
-        if env_path.exists():
-            load_dotenv(dotenv_path=env_path, override=True)
-            return
+    if ENV_FILE_PATH.exists():
+        load_dotenv(dotenv_path=ENV_FILE_PATH, override=True)
 
 
 def get_env(key, default=None):
