@@ -338,7 +338,7 @@ class SQLServerRepository:
         FROM dbo.monitoramento m
         INNER JOIN dbo.taloes t ON t.id = m.talao_id
         WHERE m.proximo_alerta <= SYSUTCDATETIME()
-          AND t.status = 'monitorado'
+          AND t.status = 'MONITORADO'
         ORDER BY m.proximo_alerta ASC;
         """
         with self._connect() as conn:

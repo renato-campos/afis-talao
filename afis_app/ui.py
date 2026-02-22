@@ -10,6 +10,11 @@ try:
 except ImportError:
     ctk = None
 
+try:
+    from openpyxl import load_workbook
+except ImportError:
+    load_workbook = None
+
 from .constants import (
     CANCEL_REQUIRED,
     CREATE_REQUIRED,
@@ -46,7 +51,7 @@ UI_THEME = {
     "border": "#D5DEEA",
     "placeholder": "#94A3B8",
     "white": "#FFFFFF",
-    "status_monitorado_bg": "#FFF9DB",
+    "status_monitorado_bg": "#F8E171",
     "status_monitorado_fg": "#6B5600",
     "status_finalizado_bg": "#EAF7EE",
     "status_finalizado_fg": "#1E5E36",
@@ -137,8 +142,9 @@ class TalaoEditor(tk.Toplevel):
         self.talao_id = talao_id
         self.on_saved = on_saved
         self.title("Editar Talão")
-        self.geometry("650x560")
-        self.resizable(False, False)
+        self.geometry("450x610")
+        self.minsize(450, 610)
+        self.resizable(True, True)
         self.use_ctk = ctk is not None
 
         self.widgets = {}
@@ -215,12 +221,12 @@ class TalaoEditor(tk.Toplevel):
                 else:
                     widget = ttk.Combobox(self, values=STATUS_OPCOES, state="readonly")
                 widget.set(str(record.get(key) or STATUS_MONITORADO))
-            elif key == "observacao":
+            elif key in ("observacao", "vitimas"):
                 if self.use_ctk:
                     widget = ctk.CTkTextbox(
                         self.form_parent,
                         width=430,
-                        height=96,
+                        height=96 if key == "observacao" else 72,
                         fg_color=UI_THEME["surface_alt"],
                         border_width=1,
                         border_color=UI_THEME["border"],
@@ -228,7 +234,7 @@ class TalaoEditor(tk.Toplevel):
                 else:
                     widget = tk.Text(
                         self,
-                        height=4,
+                        height=4 if key == "observacao" else 3,
                         width=40,
                         bg=UI_THEME["surface_alt"],
                         fg=UI_THEME["text"],
@@ -319,8 +325,8 @@ class TalaoEditor(tk.Toplevel):
                 actions,
                 text="Salvar",
                 command=self.save,
-                fg_color=UI_THEME["primary"],
-                hover_color=UI_THEME["primary_hover"],
+                fg_color=UI_THEME["success"],
+                hover_color=UI_THEME["success_hover"],
                 text_color=UI_THEME["white"],
                 font=BUTTON_FONT_BOLD,
                 corner_radius=8,
@@ -331,7 +337,7 @@ class TalaoEditor(tk.Toplevel):
         else:
             actions = tk.Frame(self, bg=UI_THEME["surface"])
             actions.grid(row=row, column=0, columnspan=2, sticky="ew", padx=12, pady=12)
-            _build_button(actions, "Salvar", self.save, "primary").pack(side="left")
+            _build_button(actions, "Salvar", self.save, "success").pack(side="left")
             _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self.form_parent.columnconfigure(1, weight=1)
@@ -431,8 +437,9 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         super().__init__(parent)
         self.repo = repo
         self.title("Relatórios por Período")
-        self.geometry("300x160")
-        self.resizable(False, False)
+        self.geometry("260x180")
+        self.minsize(260, 180)
+        self.resizable(True, True)
         self.date_placeholder_active = {"inicio": False, "fim": False}
         self.use_ctk = ctk is not None
 
@@ -450,7 +457,7 @@ class RelatorioPeriodoWindow(tk.Toplevel):
 
             ctk.CTkLabel(
                 container,
-                text="Relatório de Talões para CSV",
+                text="Relatório de Talões",
                 font=("Segoe UI", 16, "bold"),
                 text_color=UI_THEME["text"],
             ).grid(row=0, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 10))
@@ -459,36 +466,45 @@ class RelatorioPeriodoWindow(tk.Toplevel):
                 row=1, column=0, sticky="w", padx=14, pady=4
             )
             self.data_inicio_entry = ctk.CTkEntry(container, width=180, fg_color=UI_THEME["surface_alt"])
-            self.data_inicio_entry.grid(row=1, column=1, sticky="w", padx=14, pady=4)
+            self.data_inicio_entry.grid(row=1, column=1, sticky="ew", padx=14, pady=4)
 
             ctk.CTkLabel(container, text="Data fim", text_color=UI_THEME["muted"]).grid(
                 row=2, column=0, sticky="w", padx=14, pady=4
             )
             self.data_fim_entry = ctk.CTkEntry(container, width=180, fg_color=UI_THEME["surface_alt"])
-            self.data_fim_entry.grid(row=2, column=1, sticky="w", padx=14, pady=4)
+            self.data_fim_entry.grid(row=2, column=1, sticky="ew", padx=14, pady=4)
 
             actions = ctk.CTkFrame(container, fg_color="transparent")
-            actions.grid(row=3, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 14))
+            actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=14, pady=(14, 14))
+            _build_button(
+                actions,
+                "Excel",
+                self.gerar_modelo_xlsx,
+                "success",
+                use_ctk=True,
+                width=170,
+            ).pack(side="left")
             ctk.CTkButton(
                 actions,
-                text="Gerar CSV",
+                text="CSV",
                 command=self.gerar_csv,
                 fg_color=UI_THEME["warning"],
                 hover_color=UI_THEME["warning_hover"],
                 text_color=UI_THEME["white"],
                 font=BUTTON_FONT_BOLD,
                 width=120,
-            ).pack(side="left")
+            ).pack(side="left", padx=(8, 0))
             _build_button(actions, "Cancelar", self.destroy, "neutral", use_ctk=True, width=120).pack(side="left", padx=(8, 0))
 
             container.columnconfigure(1, weight=1)
         else:
             frame = tk.Frame(self, padx=12, pady=12, bg=UI_THEME["surface"])
             frame.pack(fill="both", expand=True)
+            frame.columnconfigure(1, weight=1)
 
             tk.Label(
                 frame,
-                text="Relatório de Talões para CSV",
+                text="Relatório de Talões",
                 font=("Segoe UI", 12, "bold"),
                 bg=UI_THEME["surface"],
                 fg=UI_THEME["text"],
@@ -506,7 +522,7 @@ class RelatorioPeriodoWindow(tk.Toplevel):
                 highlightbackground=UI_THEME["border"],
                 insertbackground=UI_THEME["text"],
             )
-            self.data_inicio_entry.grid(row=1, column=1, sticky="w", pady=4)
+            self.data_inicio_entry.grid(row=1, column=1, sticky="ew", pady=4)
 
             tk.Label(frame, text="Data fim", bg=UI_THEME["surface"], fg=UI_THEME["muted"]).grid(row=2, column=0, sticky="w", pady=4)
             self.data_fim_entry = tk.Entry(
@@ -519,11 +535,12 @@ class RelatorioPeriodoWindow(tk.Toplevel):
                 highlightbackground=UI_THEME["border"],
                 insertbackground=UI_THEME["text"],
             )
-            self.data_fim_entry.grid(row=2, column=1, sticky="w", pady=4)
+            self.data_fim_entry.grid(row=2, column=1, sticky="ew", pady=4)
 
             actions = tk.Frame(frame, bg=UI_THEME["surface"])
-            actions.grid(row=3, column=0, columnspan=2, sticky="w", pady=(14, 0))
-            _build_button(actions, "Gerar CSV", self.gerar_csv, "warning").pack(side="left")
+            actions.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(14, 0))
+            _build_button(actions, "Excel", self.gerar_modelo_xlsx, "success").pack(side="left")
+            _build_button(actions, "CSV", self.gerar_csv, "warning").pack(side="left", padx=(8, 0))
             _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self._bind_date_placeholder(self.data_inicio_entry, "inicio")
@@ -582,19 +599,38 @@ class RelatorioPeriodoWindow(tk.Toplevel):
             return ""
         return widget.get().strip()
 
-    def gerar_csv(self):
+    def _load_report_rows(self):
         try:
             data_inicio, data_fim = self._parse_periodo()
         except ValueError as exc:
             messagebox.showwarning("Validação", str(exc))
-            return
+            return None
 
         try:
             columns, rows = self.repo.list_taloes_by_period(data_inicio, data_fim)
         except Exception:
             logger.exception("Falha ao consultar talões para relatório")
             messagebox.showerror("Erro", "Falha ao consultar dados para o relatório.")
+            return None
+        return data_inicio, data_fim, columns, rows
+
+    def _resolve_modelo_path(self):
+        return Path(__file__).resolve().parent.parent / "assets" / "modelo.xlsx"
+
+    def _format_excel_date(self, value):
+        if value is None:
+            return ""
+        if isinstance(value, datetime):
+            return value.strftime("%d/%m/%Y")
+        if isinstance(value, date):
+            return value.strftime("%d/%m/%Y")
+        return str(value)
+
+    def gerar_csv(self):
+        loaded = self._load_report_rows()
+        if loaded is None:
             return
+        data_inicio, data_fim, columns, rows = loaded
 
         nome_base = f"relatorio_taloes_{data_inicio.strftime('%Y%m%d')}_{data_fim.strftime('%Y%m%d')}.csv"
         path = filedialog.asksaveasfilename(
@@ -620,6 +656,68 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         messagebox.showinfo("Relatório", f"Relatório gerado com sucesso.\nRegistros exportados: {len(rows)}")
         self.destroy()
 
+    def gerar_modelo_xlsx(self):
+        if load_workbook is None:
+            messagebox.showerror(
+                "Dependência ausente",
+                "A biblioteca openpyxl não está instalada.\nInstale para habilitar a geração de XLSX pelo modelo.",
+            )
+            return
+
+        loaded = self._load_report_rows()
+        if loaded is None:
+            return
+        data_inicio, data_fim, columns, rows = loaded
+
+        modelo_path = self._resolve_modelo_path()
+        if not modelo_path.exists():
+            messagebox.showerror("Erro", f"Modelo não encontrado:\n{modelo_path}")
+            return
+
+        nome_base = f"relatorio_taloes_modelo_{data_inicio.strftime('%Y%m%d')}_{data_fim.strftime('%Y%m%d')}.xlsx"
+        path = filedialog.asksaveasfilename(
+            title="Salvar relatório XLSX (modelo)",
+            defaultextension=".xlsx",
+            initialfile=nome_base,
+            filetypes=[("Excel", "*.xlsx"), ("Todos os arquivos", "*.*")],
+        )
+        if not path:
+            return
+
+        try:
+            wb = load_workbook(modelo_path)
+            ws = wb.active
+            col_idx = {name: idx for idx, name in enumerate(columns)}
+
+            max_row = max(ws.max_row, 7)
+            for row_idx in range(7, max_row + 1):
+                for col in range(1, 9):
+                    ws.cell(row=row_idx, column=col, value=None)
+
+            row_excel = 7
+            for row in rows:
+                values = list(row)
+                ano = values[col_idx["ano"]]
+                talao = values[col_idx["talao"]]
+                ws.cell(row=row_excel, column=1, value=self._format_excel_date(values[col_idx["data_solic"]]))
+                ws.cell(row=row_excel, column=2, value=format_talao(ano, talao))
+                ws.cell(row=row_excel, column=3, value=self._format_excel_date(values[col_idx["data_bo"]]))
+                ws.cell(row=row_excel, column=4, value=values[col_idx["boletim"]] or "")
+                ws.cell(row=row_excel, column=5, value=values[col_idx["delegacia"]] or "")
+                ws.cell(row=row_excel, column=6, value=values[col_idx["natureza"]] or "")
+                ws.cell(row=row_excel, column=7, value=values[col_idx["vitimas"]] or "")
+                ws.cell(row=row_excel, column=8, value=values[col_idx["equipe"]] or "")
+                row_excel += 1
+
+            wb.save(path)
+        except Exception:
+            logger.exception("Falha ao gerar XLSX de relatório com modelo em %s", path)
+            messagebox.showerror("Erro", "Falha ao gerar arquivo XLSX pelo modelo.")
+            return
+
+        messagebox.showinfo("Relatório", f"Relatório XLSX gerado com sucesso.\nRegistros exportados: {len(rows)}")
+        self.destroy()
+
 
 class BackupAnoWindow(tk.Toplevel):
     def __init__(self, parent, repo):
@@ -627,7 +725,8 @@ class BackupAnoWindow(tk.Toplevel):
         self.repo = repo
         self.title("Backup por Ano")
         self.geometry("300x130")
-        self.resizable(False, False)
+        self.minsize(300, 130)
+        self.resizable(True, True)
         self.ano_var = tk.StringVar(value=str(datetime.now().year - 1))
         self.use_ctk = ctk is not None
 
@@ -661,10 +760,10 @@ class BackupAnoWindow(tk.Toplevel):
                 fg_color=UI_THEME["surface_alt"],
                 border_width=1,
                 border_color=UI_THEME["border"],
-            ).grid(row=1, column=1, sticky="w", padx=14, pady=(0, 6))
+            ).grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 6))
 
             actions = ctk.CTkFrame(container, fg_color="transparent")
-            actions.grid(row=2, column=0, columnspan=2, sticky="w", padx=14, pady=(6, 12))
+            actions.grid(row=2, column=0, columnspan=2, sticky="ew", padx=14, pady=(6, 12))
             ctk.CTkButton(
                 actions,
                 text="Gerar Backup SQL",
@@ -676,9 +775,11 @@ class BackupAnoWindow(tk.Toplevel):
                 width=160,
             ).pack(side="left")
             _build_button(actions, "Cancelar", self.destroy, "neutral", use_ctk=True, width=120).pack(side="left", padx=(8, 0))
+            container.columnconfigure(1, weight=1)
         else:
             frame = tk.Frame(self, padx=12, pady=12, bg=UI_THEME["surface"])
             frame.pack(fill="both", expand=True)
+            frame.columnconfigure(1, weight=1)
             tk.Label(
                 frame,
                 text="Backup dos Talões",
@@ -699,9 +800,9 @@ class BackupAnoWindow(tk.Toplevel):
                 highlightthickness=1,
                 highlightbackground=UI_THEME["border"],
                 insertbackground=UI_THEME["text"],
-            ).grid(row=1, column=1, sticky="w", pady=(0, 6))
+            ).grid(row=1, column=1, sticky="ew", pady=(0, 6))
             actions = tk.Frame(frame, bg=UI_THEME["surface"])
-            actions.grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+            actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
             _build_button(actions, "Gerar Backup SQL", self.gerar_backup, "warning").pack(side="left")
             _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
