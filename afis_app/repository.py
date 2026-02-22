@@ -346,6 +346,39 @@ class SQLServerRepository:
             cur.execute(query)
             return cur.fetchall()
 
+    def list_taloes_by_period(self, data_inicio, data_fim):
+        query = """
+        SELECT
+            t.id,
+            t.ano,
+            t.talao,
+            t.data_solic,
+            t.hora_solic,
+            t.delegacia,
+            t.autoridade,
+            t.solicitante,
+            t.endereco,
+            t.boletim,
+            t.natureza,
+            t.data_bo,
+            t.vitimas,
+            t.equipe,
+            t.operador,
+            t.status,
+            t.observacao,
+            t.criado_em,
+            t.atualizado_em
+        FROM dbo.taloes t
+        WHERE t.data_solic BETWEEN ? AND ?
+        ORDER BY t.data_solic ASC, t.hora_solic ASC, t.id ASC;
+        """
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, data_inicio, data_fim)
+            rows = cur.fetchall()
+            columns = [d[0] for d in cur.description]
+            return columns, rows
+
     def postpone_monitoring(self, talao_id, intervalo_min):
         with self._connect() as conn:
             cur = conn.cursor()

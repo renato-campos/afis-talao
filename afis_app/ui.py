@@ -1,8 +1,9 @@
 import tkinter as tk
+import csv
 import logging
 from datetime import datetime
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 try:
     import customtkinter as ctk
@@ -39,6 +40,7 @@ UI_THEME = {
     "success_hover": "#18703E",
     "danger": "#C0392B",
 }
+BUTTON_FONT_BOLD = ("Segoe UI", 11, "bold")
 WATERMARK_MAX_WIDTH = 2560
 WATERMARK_MAX_HEIGHT = 1440
 
@@ -225,6 +227,7 @@ class TalaoEditor(tk.Toplevel):
                 fg_color=UI_THEME["primary"],
                 hover_color=UI_THEME["primary_hover"],
                 text_color="#FFFFFF",
+                font=BUTTON_FONT_BOLD,
                 corner_radius=8,
                 height=34,
                 width=130,
@@ -236,12 +239,13 @@ class TalaoEditor(tk.Toplevel):
                 fg_color="#E2E8F0",
                 hover_color="#CBD5E1",
                 text_color=UI_THEME["text"],
+                font=BUTTON_FONT_BOLD,
                 corner_radius=8,
                 height=34,
                 width=130,
             ).pack(side="left", padx=(8, 0))
         else:
-            btn = tk.Button(self, text="Salvar", bg="#1565C0", fg="white", command=self.save)
+            btn = tk.Button(self, text="Salvar", bg="#1565C0", fg="white", font=BUTTON_FONT_BOLD, command=self.save)
             btn.grid(row=row, column=0, columnspan=2, sticky="ew", padx=12, pady=12)
 
         self.form_parent.columnconfigure(1, weight=1)
@@ -336,6 +340,180 @@ class TalaoEditor(tk.Toplevel):
             messagebox.showerror("Erro", "Falha ao atualizar talão. Verifique os dados e tente novamente.")
 
 
+class RelatorioPeriodoWindow(tk.Toplevel):
+    def __init__(self, parent, repo):
+        super().__init__(parent)
+        self.repo = repo
+        self.title("Relatórios por Período")
+        self.geometry("300x160")
+        self.resizable(False, False)
+        self.date_placeholder_active = {"inicio": False, "fim": False}
+
+        if ctk is not None:
+            self.configure(fg_color="#F3F6FC")
+            container = ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#D5DEEA")
+            container.pack(fill="both", expand=True, padx=14, pady=14)
+
+            ctk.CTkLabel(
+                container,
+                text="Relatório de Talões para CSV",
+                font=("Segoe UI", 16, "bold"),
+                text_color=UI_THEME["text"],
+            ).grid(row=0, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 10))
+
+            ctk.CTkLabel(container, text="Data início", text_color=UI_THEME["muted"]).grid(
+                row=1, column=0, sticky="w", padx=14, pady=4
+            )
+            self.data_inicio_entry = ctk.CTkEntry(container, width=180, fg_color=UI_THEME["surface_alt"])
+            self.data_inicio_entry.grid(row=1, column=1, sticky="w", padx=14, pady=4)
+
+            ctk.CTkLabel(container, text="Data fim", text_color=UI_THEME["muted"]).grid(
+                row=2, column=0, sticky="w", padx=14, pady=4
+            )
+            self.data_fim_entry = ctk.CTkEntry(container, width=180, fg_color=UI_THEME["surface_alt"])
+            self.data_fim_entry.grid(row=2, column=1, sticky="w", padx=14, pady=4)
+
+            actions = ctk.CTkFrame(container, fg_color="transparent")
+            actions.grid(row=3, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 14))
+            ctk.CTkButton(
+                actions,
+                text="Gerar CSV",
+                command=self.gerar_csv,
+                fg_color="#F57C00",
+                hover_color="#E06F00",
+                text_color="#FFFFFF",
+                font=BUTTON_FONT_BOLD,
+                width=120,
+            ).pack(side="left")
+            ctk.CTkButton(
+                actions,
+                text="Cancelar",
+                command=self.destroy,
+                fg_color="#E2E8F0",
+                hover_color="#CBD5E1",
+                text_color=UI_THEME["text"],
+                font=BUTTON_FONT_BOLD,
+                width=120,
+            ).pack(side="left", padx=(8, 0))
+
+            container.columnconfigure(1, weight=1)
+        else:
+            frame = tk.Frame(self, padx=12, pady=12)
+            frame.pack(fill="both", expand=True)
+
+            tk.Label(frame, text="Relatório de Talões para CSV", font=("Arial", 12, "bold")).grid(
+                row=0, column=0, columnspan=2, sticky="w", pady=(0, 10)
+            )
+            tk.Label(frame, text="Data início").grid(row=1, column=0, sticky="w", pady=4)
+            self.data_inicio_entry = tk.Entry(frame, width=24)
+            self.data_inicio_entry.grid(row=1, column=1, sticky="w", pady=4)
+
+            tk.Label(frame, text="Data fim").grid(row=2, column=0, sticky="w", pady=4)
+            self.data_fim_entry = tk.Entry(frame, width=24)
+            self.data_fim_entry.grid(row=2, column=1, sticky="w", pady=4)
+
+            tk.Button(frame, text="Gerar CSV", command=self.gerar_csv, bg="#F57C00", fg="white", font=BUTTON_FONT_BOLD).grid(
+                row=3, column=0, sticky="w", pady=(14, 0)
+            )
+            tk.Button(frame, text="Cancelar", command=self.destroy, font=BUTTON_FONT_BOLD).grid(
+                row=3, column=1, sticky="w", pady=(14, 0)
+            )
+
+        self._bind_date_placeholder(self.data_inicio_entry, "inicio")
+        self._bind_date_placeholder(self.data_fim_entry, "fim")
+        self._set_date_placeholder(self.data_inicio_entry, "inicio")
+        self._set_date_placeholder(self.data_fim_entry, "fim")
+
+        self.transient(parent)
+        self.grab_set()
+
+    def _parse_periodo(self):
+        data_inicio_txt = self._get_date_value(self.data_inicio_entry, "inicio")
+        data_fim_txt = self._get_date_value(self.data_fim_entry, "fim")
+        try:
+            data_inicio = datetime.strptime(data_inicio_txt, "%d/%m/%Y").date()
+            data_fim = datetime.strptime(data_fim_txt, "%d/%m/%Y").date()
+        except ValueError as exc:
+            raise ValueError("Datas inválidas. Use o formato dd/mm/aaaa.") from exc
+        if data_inicio > data_fim:
+            raise ValueError("Data início não pode ser maior que data fim.")
+        return data_inicio, data_fim
+
+    def _set_entry_text_color(self, widget, color):
+        if ctk is not None and isinstance(widget, ctk.CTkEntry):
+            widget.configure(text_color=color)
+        else:
+            widget.configure(fg=color)
+
+    def _bind_date_placeholder(self, widget, key):
+        widget.bind("<FocusIn>", lambda _e: self._on_date_focus_in(widget, key))
+        widget.bind("<FocusOut>", lambda _e: self._on_date_focus_out(widget, key))
+        widget.bind("<KeyPress>", lambda e: self._on_date_key_press(widget, key, e))
+
+    def _set_date_placeholder(self, widget, key):
+        widget.delete(0, tk.END)
+        widget.insert(0, "dd/mm/aaaa")
+        self._set_entry_text_color(widget, "#94A3B8")
+        self.date_placeholder_active[key] = True
+
+    def _on_date_focus_in(self, widget, key):
+        if self.date_placeholder_active[key]:
+            widget.icursor(0)
+
+    def _on_date_focus_out(self, widget, key):
+        if not widget.get().strip():
+            self._set_date_placeholder(widget, key)
+
+    def _on_date_key_press(self, widget, key, event):
+        if self.date_placeholder_active[key] and (event.char and event.char.isprintable()):
+            widget.delete(0, tk.END)
+            self._set_entry_text_color(widget, UI_THEME["text"])
+            self.date_placeholder_active[key] = False
+
+    def _get_date_value(self, widget, key):
+        if self.date_placeholder_active[key]:
+            return ""
+        return widget.get().strip()
+
+    def gerar_csv(self):
+        try:
+            data_inicio, data_fim = self._parse_periodo()
+        except ValueError as exc:
+            messagebox.showwarning("Validação", str(exc))
+            return
+
+        try:
+            columns, rows = self.repo.list_taloes_by_period(data_inicio, data_fim)
+        except Exception:
+            logger.exception("Falha ao consultar talões para relatório")
+            messagebox.showerror("Erro", "Falha ao consultar dados para o relatório.")
+            return
+
+        nome_base = f"relatorio_taloes_{data_inicio.strftime('%Y%m%d')}_{data_fim.strftime('%Y%m%d')}.csv"
+        path = filedialog.asksaveasfilename(
+            title="Salvar relatório CSV",
+            defaultextension=".csv",
+            initialfile=nome_base,
+            filetypes=[("CSV", "*.csv"), ("Todos os arquivos", "*.*")],
+        )
+        if not path:
+            return
+
+        try:
+            with open(path, "w", encoding="utf-8-sig", newline="") as csv_file:
+                writer = csv.writer(csv_file, delimiter=";")
+                writer.writerow(columns)
+                for row in rows:
+                    writer.writerow(list(row))
+        except Exception:
+            logger.exception("Falha ao gravar relatório CSV em %s", path)
+            messagebox.showerror("Erro", "Falha ao gravar arquivo CSV.")
+            return
+
+        messagebox.showinfo("Relatório", f"Relatório gerado com sucesso.\nRegistros exportados: {len(rows)}")
+        self.destroy()
+
+
 class AFISDashboard:
     ALERT_POLL_MS = 60000
     AUTO_REFRESH_MS = 60000
@@ -383,6 +561,7 @@ class AFISDashboard:
             cfg = {
                 "primary": (UI_THEME["primary"], UI_THEME["primary_hover"], "#FFFFFF"),
                 "success": (UI_THEME["success"], UI_THEME["success_hover"], "#FFFFFF"),
+                "warning": ("#F57C00", "#E06F00", "#FFFFFF"),
                 "neutral": ("#E2E8F0", "#CBD5E1", UI_THEME["text"]),
             }
             fg, hover, text_color = cfg.get(variant, cfg["neutral"])
@@ -393,16 +572,27 @@ class AFISDashboard:
                 fg_color=fg,
                 hover_color=hover,
                 text_color=text_color,
+                font=BUTTON_FONT_BOLD,
                 corner_radius=8,
                 height=34,
             )
         color_map = {
             "primary": (UI_THEME["primary"], "#FFFFFF"),
             "success": (UI_THEME["success"], "#FFFFFF"),
+            "warning": ("#F57C00", "#FFFFFF"),
             "neutral": ("#E2E8F0", UI_THEME["text"]),
         }
         bg, fg = color_map.get(variant, color_map["neutral"])
-        return tk.Button(parent, text=text, command=command, bg=bg, fg=fg, relief="flat", activebackground=bg)
+        return tk.Button(
+            parent,
+            text=text,
+            command=command,
+            bg=bg,
+            fg=fg,
+            font=BUTTON_FONT_BOLD,
+            relief="flat",
+            activebackground=bg,
+        )
 
     def _build_layout(self):
         titulo = tk.Label(
@@ -521,6 +711,7 @@ class AFISDashboard:
         botoes.grid(row=row, column=2, columnspan=2, sticky="ew", padx=4, pady=8)
         self._build_button(botoes, "Salvar", self.criar_talao, "success").pack(side="left", padx=4)
         self._build_button(botoes, "Editar", self.editar_selecionado, "primary").pack(side="left", padx=4)
+        self._build_button(botoes, "Relatórios", self.abrir_relatorios, "warning").pack(side="left", padx=4)
         self._build_button(botoes, "Atualizar", self.refresh_tree, "neutral").pack(side="left", padx=4)
         self._build_button(botoes, "Limpar", self._set_defaults, "neutral").pack(side="left", padx=4)
 
@@ -713,6 +904,9 @@ class AFISDashboard:
         talao_id = int(item_id)
         intervalo = self.intervalo_map.get(self.alerta_var.get(), DEFAULT_ALERT_INTERVAL_MIN)
         TalaoEditor(self.root, self.repo, talao_id, intervalo, self.refresh_tree)
+
+    def abrir_relatorios(self):
+        RelatorioPeriodoWindow(self.root, self.repo)
 
     def refresh_tree(self, silent=False):
         for iid in self.tree.get_children():
