@@ -63,6 +63,15 @@ def format_talao(ano, numero):
         return f"{numero or '----'}/{ano or '----'}"
 
 
+def _normalize_user_text(value, field_name):
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if field_name in ("observacao", "status"):
+        return text
+    return text.upper()
+
+
 class TalaoEditor(tk.Toplevel):
     def __init__(self, parent, repo, talao_id, intervalo_min, on_saved):
         super().__init__(parent)
@@ -70,12 +79,14 @@ class TalaoEditor(tk.Toplevel):
         self.talao_id = talao_id
         self.on_saved = on_saved
         self.title("Editar Talão")
-        self.geometry("700x680")
+        self.geometry("650x530")
         self.resizable(False, False)
-        self.configure(bg=UI_THEME["bg"])
+        self.use_ctk = ctk is not None
 
         self.widgets = {}
         self.intervalo_var = tk.StringVar(value=str(intervalo_min))
+        self.data_bo_placeholder_active = False
+        self.form_parent = self
 
         row = 0
         record = self.repo.get_talao(talao_id)
@@ -85,60 +96,79 @@ class TalaoEditor(tk.Toplevel):
             return
         self.record = record
 
-        header = tk.Frame(self, bg=UI_THEME["bg"])
-        header.grid(row=row, column=0, columnspan=2, sticky="ew", padx=14, pady=(12, 10))
-        tk.Label(
-            header,
-            text="Edição de Talão",
-            font=("Segoe UI", 16, "bold"),
-            bg=UI_THEME["bg"],
-            fg=UI_THEME["text"],
-        ).pack(anchor="w")
-        tk.Label(
-            header,
-            text=f"Talão {format_talao(record.get('ano'), record.get('talao'))}",
-            font=("Segoe UI", 10, "bold"),
-            bg=UI_THEME["bg"],
-            fg=UI_THEME["muted"],
-        ).pack(anchor="w", pady=(2, 0))
+        if self.use_ctk:
+            self.configure(fg_color="#F3F6FC")
+            self.form_parent = ctk.CTkFrame(
+                self,
+                fg_color="#FFFFFF",
+                corner_radius=12,
+                border_width=1,
+                border_color="#D5DEEA",
+            )
+            self.form_parent.pack(fill="both", expand=True, padx=14, pady=14)
+            ctk.CTkLabel(
+                self.form_parent,
+                text=f"Editar Talão {format_talao(record.get('ano'), record.get('talao'))}",
+                font=("Segoe UI", 18, "bold"),
+                text_color=UI_THEME["text"],
+            ).grid(row=row, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 12))
+        else:
+            tk.Label(self, text=f"Talão {format_talao(record.get('ano'), record.get('talao'))}", font=("Arial", 12, "bold")).grid(
+                row=row, column=0, columnspan=2, sticky="w", padx=12, pady=(10, 12)
+            )
         row += 1
 
         for key in EDITABLE_FIELDS:
-            tk.Label(
-                self,
-                text=FIELD_LABELS[key],
-                bg=UI_THEME["bg"],
-                fg=UI_THEME["muted"],
-                font=("Segoe UI", 9),
-            ).grid(row=row, column=0, sticky="w", padx=14, pady=4)
+            label_text = FIELD_LABELS[key]
+            if key == "data_bo":
+                label_text = "Data BO"
+            if self.use_ctk:
+                ctk.CTkLabel(
+                    self.form_parent,
+                    text=label_text,
+                    font=("Segoe UI", 12),
+                    text_color=UI_THEME["muted"],
+                ).grid(row=row, column=0, sticky="w", padx=14, pady=4)
+            else:
+                tk.Label(self, text=label_text).grid(row=row, column=0, sticky="w", padx=12, pady=4)
 
             if key == "status":
-                widget = ttk.Combobox(self, values=STATUS_OPCOES, state="readonly", style="AFIS.TCombobox")
+                if self.use_ctk:
+                    widget = ctk.CTkComboBox(
+                        self.form_parent,
+                        values=list(STATUS_OPCOES),
+                        variable=tk.StringVar(value=str(record.get(key) or STATUS_MONITORADO)),
+                        state="readonly",
+                        width=430,
+                    )
+                else:
+                    widget = ttk.Combobox(self, values=STATUS_OPCOES, state="readonly")
                 widget.set(str(record.get(key) or STATUS_MONITORADO))
             elif key == "observacao":
-                widget = tk.Text(
-                    self,
-                    height=4,
-                    width=40,
-                    bg=UI_THEME["surface_alt"],
-                    fg=UI_THEME["text"],
-                    relief="flat",
-                    highlightthickness=1,
-                    highlightbackground="#D5DEEA",
-                    insertbackground=UI_THEME["text"],
-                )
+                if self.use_ctk:
+                    widget = ctk.CTkTextbox(
+                        self.form_parent,
+                        width=430,
+                        height=96,
+                        fg_color=UI_THEME["surface_alt"],
+                        border_width=1,
+                        border_color="#D5DEEA",
+                    )
+                else:
+                    widget = tk.Text(self, height=4, width=40)
                 widget.insert("1.0", str(record.get(key) or ""))
             else:
-                widget = tk.Entry(
-                    self,
-                    width=45,
-                    bg=UI_THEME["surface_alt"],
-                    fg=UI_THEME["text"],
-                    relief="flat",
-                    highlightthickness=1,
-                    highlightbackground="#D5DEEA",
-                    insertbackground=UI_THEME["text"],
-                )
+                if self.use_ctk:
+                    widget = ctk.CTkEntry(
+                        self.form_parent,
+                        width=430,
+                        fg_color=UI_THEME["surface_alt"],
+                        border_width=1,
+                        border_color="#D5DEEA",
+                        text_color=UI_THEME["text"],
+                    )
+                else:
+                    widget = tk.Entry(self, width=45)
                 value = record.get(key)
                 if value is None:
                     value_str = ""
@@ -148,41 +178,57 @@ class TalaoEditor(tk.Toplevel):
                     value_str = str(value)
                 widget.insert(0, value_str)
 
-            widget.grid(row=row, column=1, sticky="ew", padx=14, pady=4)
+            if self.use_ctk:
+                widget.grid(row=row, column=1, sticky="ew", padx=14, pady=4)
+            else:
+                widget.grid(row=row, column=1, sticky="ew", padx=12, pady=4)
             self.widgets[key] = widget
+            if key == "data_bo":
+                self._bind_data_bo_placeholder(widget)
+                if not value_str:
+                    self._set_data_bo_placeholder(widget)
             row += 1
 
-        tk.Label(
-            self,
-            text="Intervalo de alerta (min)",
-            bg=UI_THEME["bg"],
-            fg=UI_THEME["muted"],
-            font=("Segoe UI", 9),
-        ).grid(row=row, column=0, sticky="w", padx=14, pady=8)
-        ttk.Combobox(
-            self,
-            textvariable=self.intervalo_var,
-            state="readonly",
-            values=[str(minutes) for _, minutes in ALERT_INTERVAL_OPTIONS],
-            style="AFIS.TCombobox",
-        ).grid(
-            row=row, column=1, sticky="w", padx=14, pady=8
-        )
+        if self.use_ctk:
+            ctk.CTkLabel(
+                self.form_parent,
+                text="Alerta (min)",
+                font=("Segoe UI", 12),
+                text_color=UI_THEME["muted"],
+            ).grid(row=row, column=0, sticky="w", padx=14, pady=8)
+            ctk.CTkComboBox(
+                self.form_parent,
+                textvariable=self.intervalo_var,
+                state="readonly",
+                values=[str(minutes) for _, minutes in ALERT_INTERVAL_OPTIONS],
+                width=180,
+            ).grid(row=row, column=1, sticky="w", padx=14, pady=8)
+        else:
+            tk.Label(self, text="Alerta (min)").grid(row=row, column=0, sticky="w", padx=12, pady=8)
+            ttk.Combobox(
+                self,
+                textvariable=self.intervalo_var,
+                state="readonly",
+                values=[str(minutes) for _, minutes in ALERT_INTERVAL_OPTIONS],
+            ).grid(
+                row=row, column=1, sticky="w", padx=12, pady=8
+            )
         row += 1
 
-        actions = tk.Frame(self, bg=UI_THEME["bg"])
-        actions.grid(row=row, column=0, columnspan=2, sticky="ew", padx=14, pady=(8, 12))
-        if ctk is not None:
+        if self.use_ctk:
+            actions = ctk.CTkFrame(self.form_parent, fg_color="transparent")
+            actions.grid(row=row, column=0, columnspan=2, sticky="ew", padx=14, pady=(8, 14))
             ctk.CTkButton(
                 actions,
-                text="Salvar Alterações",
+                text="Salvar",
                 command=self.save,
                 fg_color=UI_THEME["primary"],
                 hover_color=UI_THEME["primary_hover"],
                 text_color="#FFFFFF",
                 corner_radius=8,
                 height=34,
-            ).pack(side="left", padx=(0, 8))
+                width=130,
+            ).pack(side="left")
             ctk.CTkButton(
                 actions,
                 text="Cancelar",
@@ -192,27 +238,13 @@ class TalaoEditor(tk.Toplevel):
                 text_color=UI_THEME["text"],
                 corner_radius=8,
                 height=34,
-            ).pack(side="left")
+                width=130,
+            ).pack(side="left", padx=(8, 0))
         else:
-            tk.Button(
-                actions,
-                text="Salvar Alterações",
-                command=self.save,
-                bg=UI_THEME["primary"],
-                fg="white",
-                relief="flat",
-                activebackground=UI_THEME["primary_hover"],
-            ).pack(side="left", padx=(0, 8))
-            tk.Button(
-                actions,
-                text="Cancelar",
-                command=self.destroy,
-                bg="#E2E8F0",
-                fg=UI_THEME["text"],
-                relief="flat",
-            ).pack(side="left")
+            btn = tk.Button(self, text="Salvar", bg="#1565C0", fg="white", command=self.save)
+            btn.grid(row=row, column=0, columnspan=2, sticky="ew", padx=12, pady=12)
 
-        self.columnconfigure(1, weight=1)
+        self.form_parent.columnconfigure(1, weight=1)
         self.transient(parent)
         self.grab_set()
 
@@ -220,15 +252,50 @@ class TalaoEditor(tk.Toplevel):
         data = {}
         for key in EDITABLE_FIELDS:
             widget = self.widgets[key]
-            if isinstance(widget, tk.Text):
-                data[key] = widget.get("1.0", tk.END).strip()
+            if isinstance(widget, tk.Text) or (ctk is not None and isinstance(widget, ctk.CTkTextbox)):
+                raw = widget.get("1.0", tk.END).strip()
             else:
-                data[key] = widget.get().strip()
+                if key == "data_bo" and self.data_bo_placeholder_active:
+                    raw = ""
+                else:
+                    raw = widget.get().strip()
+            data[key] = _normalize_user_text(raw, key)
         data_solic = self.record.get("data_solic")
         hora_solic = self.record.get("hora_solic")
         data["data_solic"] = data_solic.strftime("%d/%m/%Y") if data_solic else ""
         data["hora_solic"] = str(hora_solic)[:5] if hora_solic else ""
         return data
+
+    def _set_entry_text_color(self, widget, color):
+        if ctk is not None and isinstance(widget, ctk.CTkEntry):
+            widget.configure(text_color=color)
+        else:
+            widget.configure(fg=color)
+
+    def _bind_data_bo_placeholder(self, widget):
+        widget.bind("<FocusIn>", lambda _e: self._on_data_bo_focus_in(widget))
+        widget.bind("<FocusOut>", lambda _e: self._on_data_bo_focus_out(widget))
+        widget.bind("<KeyPress>", lambda e: self._on_data_bo_key_press(widget, e))
+
+    def _set_data_bo_placeholder(self, widget):
+        widget.delete(0, tk.END)
+        widget.insert(0, "dd/mm/aaaa")
+        self._set_entry_text_color(widget, "#94A3B8")
+        self.data_bo_placeholder_active = True
+
+    def _on_data_bo_focus_in(self, widget):
+        if self.data_bo_placeholder_active:
+            widget.icursor(0)
+
+    def _on_data_bo_focus_out(self, widget):
+        if not widget.get().strip():
+            self._set_data_bo_placeholder(widget)
+
+    def _on_data_bo_key_press(self, widget, event):
+        if self.data_bo_placeholder_active and (event.char and event.char.isprintable()):
+            widget.delete(0, tk.END)
+            self._set_entry_text_color(widget, UI_THEME["text"])
+            self.data_bo_placeholder_active = False
 
     def save(self):
         data = self._collect()
@@ -436,7 +503,7 @@ class AFISDashboard:
         row += 1
         tk.Label(
             form,
-            text="Intervalo de alerta",
+            text="Alerta (min)",
             bg=UI_THEME["surface"],
             fg=UI_THEME["muted"],
             font=("Segoe UI", 9),
@@ -557,12 +624,13 @@ class AFISDashboard:
         data = {}
         for key, widget in self.widgets.items():
             if isinstance(widget, tk.Text):
-                data[key] = widget.get("1.0", tk.END).strip()
+                raw = widget.get("1.0", tk.END).strip()
             else:
                 if key == "data_bo" and self.data_bo_placeholder_active:
-                    data[key] = ""
+                    raw = ""
                 else:
-                    data[key] = widget.get().strip()
+                    raw = widget.get().strip()
+            data[key] = _normalize_user_text(raw, key)
         return data
 
     def _bind_data_bo_placeholder(self, widget):
