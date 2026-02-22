@@ -1,7 +1,7 @@
 import tkinter as tk
 import csv
 import logging
-from datetime import datetime
+from datetime import date, datetime, time
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
@@ -9,6 +9,11 @@ try:
     import customtkinter as ctk
 except ImportError:
     ctk = None
+
+try:
+    from openpyxl import load_workbook
+except ImportError:
+    load_workbook = None
 
 from .constants import (
     CANCEL_REQUIRED,
@@ -28,16 +33,30 @@ from .validators import normalize_and_validate
 logger = logging.getLogger(__name__)
 
 UI_THEME = {
-    "bg": "#1941B7",
+    "bg": "#585858",
     "header": "#1941B7",
-    "surface": "#FFFFFF",
+    "surface": "#F4F2DD",
     "surface_alt": "#EEF3FA",
+    "surface_hover": "#DFE7F2",
     "text": "#0F172A",
     "muted": "#334155",
     "primary": "#0B63CE",
     "primary_hover": "#0A54AE",
     "success": "#1F8A4D",
     "success_hover": "#18703E",
+    "warning": "#F57C00",
+    "warning_hover": "#E06F00",
+    "neutral": "#E2E8F0",
+    "neutral_hover": "#CBD5E1",
+    "border": "#D5DEEA",
+    "placeholder": "#94A3B8",
+    "white": "#FFFFFF",
+    "status_monitorado_bg": "#F8E171",
+    "status_monitorado_fg": "#6B5600",
+    "status_finalizado_bg": "#EAF7EE",
+    "status_finalizado_fg": "#1E5E36",
+    "status_cancelado_bg": "#FDECEC",
+    "status_cancelado_fg": "#7F1D1D",
     "danger": "#C0392B",
 }
 BUTTON_FONT_BOLD = ("Segoe UI", 11, "bold")
@@ -74,6 +93,48 @@ def _normalize_user_text(value, field_name):
     return text.upper()
 
 
+def _apply_toplevel_theme(window, bg_key="bg"):
+    if ctk is not None and isinstance(window, ctk.CTkToplevel):
+        window.configure(fg_color=UI_THEME[bg_key])
+    else:
+        window.configure(bg=UI_THEME[bg_key])
+
+
+def _build_button(parent, text, command, variant="neutral", use_ctk=False, width=None):
+    cfg = {
+        "primary": (UI_THEME["primary"], UI_THEME["primary_hover"], UI_THEME["white"]),
+        "success": (UI_THEME["success"], UI_THEME["success_hover"], UI_THEME["white"]),
+        "warning": (UI_THEME["warning"], UI_THEME["warning_hover"], UI_THEME["white"]),
+        "neutral": (UI_THEME["neutral"], UI_THEME["neutral_hover"], UI_THEME["text"]),
+    }
+    fg, hover, text_color = cfg.get(variant, cfg["neutral"])
+    if use_ctk and ctk is not None:
+        button_kwargs = {
+            "text": text,
+            "command": command,
+            "fg_color": fg,
+            "hover_color": hover,
+            "text_color": text_color,
+            "font": BUTTON_FONT_BOLD,
+            "corner_radius": 8,
+            "height": 34,
+        }
+        if width is not None:
+            button_kwargs["width"] = width
+        return ctk.CTkButton(parent, **button_kwargs)
+    return tk.Button(
+        parent,
+        text=text,
+        command=command,
+        bg=fg,
+        fg=text_color,
+        font=BUTTON_FONT_BOLD,
+        relief="flat",
+        activebackground=hover,
+        activeforeground=text_color,
+    )
+
+
 class TalaoEditor(tk.Toplevel):
     def __init__(self, parent, repo, talao_id, intervalo_min, on_saved):
         super().__init__(parent)
@@ -81,14 +142,17 @@ class TalaoEditor(tk.Toplevel):
         self.talao_id = talao_id
         self.on_saved = on_saved
         self.title("Editar Talão")
-        self.geometry("650x530")
-        self.resizable(False, False)
+        self.geometry("450x610")
+        self.minsize(450, 610)
+        self.resizable(True, True)
         self.use_ctk = ctk is not None
 
         self.widgets = {}
         self.intervalo_var = tk.StringVar(value=str(intervalo_min))
         self.data_bo_placeholder_active = False
         self.form_parent = self
+
+        _apply_toplevel_theme(self, bg_key="surface")
 
         row = 0
         record = self.repo.get_talao(talao_id)
@@ -99,13 +163,12 @@ class TalaoEditor(tk.Toplevel):
         self.record = record
 
         if self.use_ctk:
-            self.configure(fg_color="#F3F6FC")
             self.form_parent = ctk.CTkFrame(
                 self,
-                fg_color="#FFFFFF",
+                fg_color=UI_THEME["surface"],
                 corner_radius=12,
                 border_width=1,
-                border_color="#D5DEEA",
+                border_color=UI_THEME["border"],
             )
             self.form_parent.pack(fill="both", expand=True, padx=14, pady=14)
             ctk.CTkLabel(
@@ -115,7 +178,13 @@ class TalaoEditor(tk.Toplevel):
                 text_color=UI_THEME["text"],
             ).grid(row=row, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 12))
         else:
-            tk.Label(self, text=f"Talão {format_talao(record.get('ano'), record.get('talao'))}", font=("Arial", 12, "bold")).grid(
+            tk.Label(
+                self,
+                text=f"Talão {format_talao(record.get('ano'), record.get('talao'))}",
+                font=("Segoe UI", 12, "bold"),
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["text"],
+            ).grid(
                 row=row, column=0, columnspan=2, sticky="w", padx=12, pady=(10, 12)
             )
         row += 1
@@ -132,7 +201,13 @@ class TalaoEditor(tk.Toplevel):
                     text_color=UI_THEME["muted"],
                 ).grid(row=row, column=0, sticky="w", padx=14, pady=4)
             else:
-                tk.Label(self, text=label_text).grid(row=row, column=0, sticky="w", padx=12, pady=4)
+                tk.Label(
+                    self,
+                    text=label_text,
+                    bg=UI_THEME["surface"],
+                    fg=UI_THEME["muted"],
+                    font=("Segoe UI", 10),
+                ).grid(row=row, column=0, sticky="w", padx=12, pady=4)
 
             if key == "status":
                 if self.use_ctk:
@@ -146,18 +221,28 @@ class TalaoEditor(tk.Toplevel):
                 else:
                     widget = ttk.Combobox(self, values=STATUS_OPCOES, state="readonly")
                 widget.set(str(record.get(key) or STATUS_MONITORADO))
-            elif key == "observacao":
+            elif key in ("observacao", "vitimas"):
                 if self.use_ctk:
                     widget = ctk.CTkTextbox(
                         self.form_parent,
                         width=430,
-                        height=96,
+                        height=96 if key == "observacao" else 72,
                         fg_color=UI_THEME["surface_alt"],
                         border_width=1,
-                        border_color="#D5DEEA",
+                        border_color=UI_THEME["border"],
                     )
                 else:
-                    widget = tk.Text(self, height=4, width=40)
+                    widget = tk.Text(
+                        self,
+                        height=4 if key == "observacao" else 3,
+                        width=40,
+                        bg=UI_THEME["surface_alt"],
+                        fg=UI_THEME["text"],
+                        relief="flat",
+                        highlightthickness=1,
+                        highlightbackground=UI_THEME["border"],
+                        insertbackground=UI_THEME["text"],
+                    )
                 widget.insert("1.0", str(record.get(key) or ""))
             else:
                 if self.use_ctk:
@@ -166,11 +251,20 @@ class TalaoEditor(tk.Toplevel):
                         width=430,
                         fg_color=UI_THEME["surface_alt"],
                         border_width=1,
-                        border_color="#D5DEEA",
+                        border_color=UI_THEME["border"],
                         text_color=UI_THEME["text"],
                     )
                 else:
-                    widget = tk.Entry(self, width=45)
+                    widget = tk.Entry(
+                        self,
+                        width=45,
+                        bg=UI_THEME["surface_alt"],
+                        fg=UI_THEME["text"],
+                        relief="flat",
+                        highlightthickness=1,
+                        highlightbackground=UI_THEME["border"],
+                        insertbackground=UI_THEME["text"],
+                    )
                 value = record.get(key)
                 if value is None:
                     value_str = ""
@@ -206,12 +300,19 @@ class TalaoEditor(tk.Toplevel):
                 width=180,
             ).grid(row=row, column=1, sticky="w", padx=14, pady=8)
         else:
-            tk.Label(self, text="Alerta (min)").grid(row=row, column=0, sticky="w", padx=12, pady=8)
+            tk.Label(
+                self,
+                text="Alerta (min)",
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["muted"],
+                font=("Segoe UI", 10),
+            ).grid(row=row, column=0, sticky="w", padx=12, pady=8)
             ttk.Combobox(
                 self,
                 textvariable=self.intervalo_var,
                 state="readonly",
                 values=[str(minutes) for _, minutes in ALERT_INTERVAL_OPTIONS],
+                style="AFIS.TCombobox",
             ).grid(
                 row=row, column=1, sticky="w", padx=12, pady=8
             )
@@ -224,29 +325,20 @@ class TalaoEditor(tk.Toplevel):
                 actions,
                 text="Salvar",
                 command=self.save,
-                fg_color=UI_THEME["primary"],
-                hover_color=UI_THEME["primary_hover"],
-                text_color="#FFFFFF",
+                fg_color=UI_THEME["success"],
+                hover_color=UI_THEME["success_hover"],
+                text_color=UI_THEME["white"],
                 font=BUTTON_FONT_BOLD,
                 corner_radius=8,
                 height=34,
                 width=130,
             ).pack(side="left")
-            ctk.CTkButton(
-                actions,
-                text="Cancelar",
-                command=self.destroy,
-                fg_color="#E2E8F0",
-                hover_color="#CBD5E1",
-                text_color=UI_THEME["text"],
-                font=BUTTON_FONT_BOLD,
-                corner_radius=8,
-                height=34,
-                width=130,
-            ).pack(side="left", padx=(8, 0))
+            _build_button(actions, "Cancelar", self.destroy, "neutral", use_ctk=True, width=130).pack(side="left", padx=(8, 0))
         else:
-            btn = tk.Button(self, text="Salvar", bg="#1565C0", fg="white", font=BUTTON_FONT_BOLD, command=self.save)
-            btn.grid(row=row, column=0, columnspan=2, sticky="ew", padx=12, pady=12)
+            actions = tk.Frame(self, bg=UI_THEME["surface"])
+            actions.grid(row=row, column=0, columnspan=2, sticky="ew", padx=12, pady=12)
+            _build_button(actions, "Salvar", self.save, "success").pack(side="left")
+            _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self.form_parent.columnconfigure(1, weight=1)
         self.transient(parent)
@@ -284,7 +376,7 @@ class TalaoEditor(tk.Toplevel):
     def _set_data_bo_placeholder(self, widget):
         widget.delete(0, tk.END)
         widget.insert(0, "dd/mm/aaaa")
-        self._set_entry_text_color(widget, "#94A3B8")
+        self._set_entry_text_color(widget, UI_THEME["placeholder"])
         self.data_bo_placeholder_active = True
 
     def _on_data_bo_focus_in(self, widget):
@@ -345,18 +437,27 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         super().__init__(parent)
         self.repo = repo
         self.title("Relatórios por Período")
-        self.geometry("300x160")
-        self.resizable(False, False)
+        self.geometry("260x180")
+        self.minsize(260, 180)
+        self.resizable(True, True)
         self.date_placeholder_active = {"inicio": False, "fim": False}
+        self.use_ctk = ctk is not None
 
-        if ctk is not None:
-            self.configure(fg_color="#F3F6FC")
-            container = ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#D5DEEA")
+        _apply_toplevel_theme(self)
+
+        if self.use_ctk:
+            container = ctk.CTkFrame(
+                self,
+                fg_color=UI_THEME["surface"],
+                corner_radius=12,
+                border_width=1,
+                border_color=UI_THEME["border"],
+            )
             container.pack(fill="both", expand=True, padx=14, pady=14)
 
             ctk.CTkLabel(
                 container,
-                text="Relatório de Talões para CSV",
+                text="Relatório de Talões",
                 font=("Segoe UI", 16, "bold"),
                 text_color=UI_THEME["text"],
             ).grid(row=0, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 10))
@@ -365,59 +466,82 @@ class RelatorioPeriodoWindow(tk.Toplevel):
                 row=1, column=0, sticky="w", padx=14, pady=4
             )
             self.data_inicio_entry = ctk.CTkEntry(container, width=180, fg_color=UI_THEME["surface_alt"])
-            self.data_inicio_entry.grid(row=1, column=1, sticky="w", padx=14, pady=4)
+            self.data_inicio_entry.grid(row=1, column=1, sticky="ew", padx=14, pady=4)
 
             ctk.CTkLabel(container, text="Data fim", text_color=UI_THEME["muted"]).grid(
                 row=2, column=0, sticky="w", padx=14, pady=4
             )
             self.data_fim_entry = ctk.CTkEntry(container, width=180, fg_color=UI_THEME["surface_alt"])
-            self.data_fim_entry.grid(row=2, column=1, sticky="w", padx=14, pady=4)
+            self.data_fim_entry.grid(row=2, column=1, sticky="ew", padx=14, pady=4)
 
             actions = ctk.CTkFrame(container, fg_color="transparent")
-            actions.grid(row=3, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 14))
-            ctk.CTkButton(
+            actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=14, pady=(14, 14))
+            _build_button(
                 actions,
-                text="Gerar CSV",
-                command=self.gerar_csv,
-                fg_color="#F57C00",
-                hover_color="#E06F00",
-                text_color="#FFFFFF",
-                font=BUTTON_FONT_BOLD,
-                width=120,
+                "Excel",
+                self.gerar_modelo_xlsx,
+                "success",
+                use_ctk=True,
+                width=170,
             ).pack(side="left")
             ctk.CTkButton(
                 actions,
-                text="Cancelar",
-                command=self.destroy,
-                fg_color="#E2E8F0",
-                hover_color="#CBD5E1",
-                text_color=UI_THEME["text"],
+                text="CSV",
+                command=self.gerar_csv,
+                fg_color=UI_THEME["warning"],
+                hover_color=UI_THEME["warning_hover"],
+                text_color=UI_THEME["white"],
                 font=BUTTON_FONT_BOLD,
                 width=120,
             ).pack(side="left", padx=(8, 0))
+            _build_button(actions, "Cancelar", self.destroy, "neutral", use_ctk=True, width=120).pack(side="left", padx=(8, 0))
 
             container.columnconfigure(1, weight=1)
         else:
-            frame = tk.Frame(self, padx=12, pady=12)
+            frame = tk.Frame(self, padx=12, pady=12, bg=UI_THEME["surface"])
             frame.pack(fill="both", expand=True)
+            frame.columnconfigure(1, weight=1)
 
-            tk.Label(frame, text="Relatório de Talões para CSV", font=("Arial", 12, "bold")).grid(
+            tk.Label(
+                frame,
+                text="Relatório de Talões",
+                font=("Segoe UI", 12, "bold"),
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["text"],
+            ).grid(
                 row=0, column=0, columnspan=2, sticky="w", pady=(0, 10)
             )
-            tk.Label(frame, text="Data início").grid(row=1, column=0, sticky="w", pady=4)
-            self.data_inicio_entry = tk.Entry(frame, width=24)
-            self.data_inicio_entry.grid(row=1, column=1, sticky="w", pady=4)
-
-            tk.Label(frame, text="Data fim").grid(row=2, column=0, sticky="w", pady=4)
-            self.data_fim_entry = tk.Entry(frame, width=24)
-            self.data_fim_entry.grid(row=2, column=1, sticky="w", pady=4)
-
-            tk.Button(frame, text="Gerar CSV", command=self.gerar_csv, bg="#F57C00", fg="white", font=BUTTON_FONT_BOLD).grid(
-                row=3, column=0, sticky="w", pady=(14, 0)
+            tk.Label(frame, text="Data início", bg=UI_THEME["surface"], fg=UI_THEME["muted"]).grid(row=1, column=0, sticky="w", pady=4)
+            self.data_inicio_entry = tk.Entry(
+                frame,
+                width=24,
+                bg=UI_THEME["surface_alt"],
+                fg=UI_THEME["text"],
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=UI_THEME["border"],
+                insertbackground=UI_THEME["text"],
             )
-            tk.Button(frame, text="Cancelar", command=self.destroy, font=BUTTON_FONT_BOLD).grid(
-                row=3, column=1, sticky="w", pady=(14, 0)
+            self.data_inicio_entry.grid(row=1, column=1, sticky="ew", pady=4)
+
+            tk.Label(frame, text="Data fim", bg=UI_THEME["surface"], fg=UI_THEME["muted"]).grid(row=2, column=0, sticky="w", pady=4)
+            self.data_fim_entry = tk.Entry(
+                frame,
+                width=24,
+                bg=UI_THEME["surface_alt"],
+                fg=UI_THEME["text"],
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=UI_THEME["border"],
+                insertbackground=UI_THEME["text"],
             )
+            self.data_fim_entry.grid(row=2, column=1, sticky="ew", pady=4)
+
+            actions = tk.Frame(frame, bg=UI_THEME["surface"])
+            actions.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(14, 0))
+            _build_button(actions, "Excel", self.gerar_modelo_xlsx, "success").pack(side="left")
+            _build_button(actions, "CSV", self.gerar_csv, "warning").pack(side="left", padx=(8, 0))
+            _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self._bind_date_placeholder(self.data_inicio_entry, "inicio")
         self._bind_date_placeholder(self.data_fim_entry, "fim")
@@ -453,7 +577,7 @@ class RelatorioPeriodoWindow(tk.Toplevel):
     def _set_date_placeholder(self, widget, key):
         widget.delete(0, tk.END)
         widget.insert(0, "dd/mm/aaaa")
-        self._set_entry_text_color(widget, "#94A3B8")
+        self._set_entry_text_color(widget, UI_THEME["placeholder"])
         self.date_placeholder_active[key] = True
 
     def _on_date_focus_in(self, widget, key):
@@ -475,19 +599,38 @@ class RelatorioPeriodoWindow(tk.Toplevel):
             return ""
         return widget.get().strip()
 
-    def gerar_csv(self):
+    def _load_report_rows(self):
         try:
             data_inicio, data_fim = self._parse_periodo()
         except ValueError as exc:
             messagebox.showwarning("Validação", str(exc))
-            return
+            return None
 
         try:
             columns, rows = self.repo.list_taloes_by_period(data_inicio, data_fim)
         except Exception:
             logger.exception("Falha ao consultar talões para relatório")
             messagebox.showerror("Erro", "Falha ao consultar dados para o relatório.")
+            return None
+        return data_inicio, data_fim, columns, rows
+
+    def _resolve_modelo_path(self):
+        return Path(__file__).resolve().parent.parent / "assets" / "modelo.xlsx"
+
+    def _format_excel_date(self, value):
+        if value is None:
+            return ""
+        if isinstance(value, datetime):
+            return value.strftime("%d/%m/%Y")
+        if isinstance(value, date):
+            return value.strftime("%d/%m/%Y")
+        return str(value)
+
+    def gerar_csv(self):
+        loaded = self._load_report_rows()
+        if loaded is None:
             return
+        data_inicio, data_fim, columns, rows = loaded
 
         nome_base = f"relatorio_taloes_{data_inicio.strftime('%Y%m%d')}_{data_fim.strftime('%Y%m%d')}.csv"
         path = filedialog.asksaveasfilename(
@@ -511,6 +654,254 @@ class RelatorioPeriodoWindow(tk.Toplevel):
             return
 
         messagebox.showinfo("Relatório", f"Relatório gerado com sucesso.\nRegistros exportados: {len(rows)}")
+        self.destroy()
+
+    def gerar_modelo_xlsx(self):
+        if load_workbook is None:
+            messagebox.showerror(
+                "Dependência ausente",
+                "A biblioteca openpyxl não está instalada.\nInstale para habilitar a geração de XLSX pelo modelo.",
+            )
+            return
+
+        loaded = self._load_report_rows()
+        if loaded is None:
+            return
+        data_inicio, data_fim, columns, rows = loaded
+
+        modelo_path = self._resolve_modelo_path()
+        if not modelo_path.exists():
+            messagebox.showerror("Erro", f"Modelo não encontrado:\n{modelo_path}")
+            return
+
+        nome_base = f"relatorio_taloes_modelo_{data_inicio.strftime('%Y%m%d')}_{data_fim.strftime('%Y%m%d')}.xlsx"
+        path = filedialog.asksaveasfilename(
+            title="Salvar relatório XLSX (modelo)",
+            defaultextension=".xlsx",
+            initialfile=nome_base,
+            filetypes=[("Excel", "*.xlsx"), ("Todos os arquivos", "*.*")],
+        )
+        if not path:
+            return
+
+        try:
+            wb = load_workbook(modelo_path)
+            ws = wb.active
+            col_idx = {name: idx for idx, name in enumerate(columns)}
+
+            max_row = max(ws.max_row, 7)
+            for row_idx in range(7, max_row + 1):
+                for col in range(1, 9):
+                    ws.cell(row=row_idx, column=col, value=None)
+
+            row_excel = 7
+            for row in rows:
+                values = list(row)
+                ano = values[col_idx["ano"]]
+                talao = values[col_idx["talao"]]
+                ws.cell(row=row_excel, column=1, value=self._format_excel_date(values[col_idx["data_solic"]]))
+                ws.cell(row=row_excel, column=2, value=format_talao(ano, talao))
+                ws.cell(row=row_excel, column=3, value=self._format_excel_date(values[col_idx["data_bo"]]))
+                ws.cell(row=row_excel, column=4, value=values[col_idx["boletim"]] or "")
+                ws.cell(row=row_excel, column=5, value=values[col_idx["delegacia"]] or "")
+                ws.cell(row=row_excel, column=6, value=values[col_idx["natureza"]] or "")
+                ws.cell(row=row_excel, column=7, value=values[col_idx["vitimas"]] or "")
+                ws.cell(row=row_excel, column=8, value=values[col_idx["equipe"]] or "")
+                row_excel += 1
+
+            wb.save(path)
+        except Exception:
+            logger.exception("Falha ao gerar XLSX de relatório com modelo em %s", path)
+            messagebox.showerror("Erro", "Falha ao gerar arquivo XLSX pelo modelo.")
+            return
+
+        messagebox.showinfo("Relatório", f"Relatório XLSX gerado com sucesso.\nRegistros exportados: {len(rows)}")
+        self.destroy()
+
+
+class BackupAnoWindow(tk.Toplevel):
+    def __init__(self, parent, repo):
+        super().__init__(parent)
+        self.repo = repo
+        self.title("Backup por Ano")
+        self.geometry("300x130")
+        self.minsize(300, 130)
+        self.resizable(True, True)
+        self.ano_var = tk.StringVar(value=str(datetime.now().year - 1))
+        self.use_ctk = ctk is not None
+
+        _apply_toplevel_theme(self)
+
+        if self.use_ctk:
+            container = ctk.CTkFrame(
+                self,
+                fg_color=UI_THEME["surface"],
+                corner_radius=12,
+                border_width=1,
+                border_color=UI_THEME["border"],
+            )
+            container.pack(fill="both", expand=True, padx=14, pady=14)
+
+            ctk.CTkLabel(
+                container,
+                text="Backup dos Talões",
+                font=("Segoe UI", 16, "bold"),
+                text_color=UI_THEME["text"],
+            ).grid(row=0, column=0, sticky="w", padx=14, pady=(14, 8))
+            ctk.CTkLabel(
+                container,
+                text="Ano de referência",
+                text_color=UI_THEME["muted"],
+            ).grid(row=1, column=0, sticky="w", padx=14, pady=(0, 6))
+            ctk.CTkEntry(
+                container,
+                textvariable=self.ano_var,
+                width=120,
+                fg_color=UI_THEME["surface_alt"],
+                border_width=1,
+                border_color=UI_THEME["border"],
+            ).grid(row=1, column=1, sticky="ew", padx=14, pady=(0, 6))
+
+            actions = ctk.CTkFrame(container, fg_color="transparent")
+            actions.grid(row=2, column=0, columnspan=2, sticky="ew", padx=14, pady=(6, 12))
+            ctk.CTkButton(
+                actions,
+                text="Gerar Backup SQL",
+                command=self.gerar_backup,
+                fg_color=UI_THEME["warning"],
+                hover_color=UI_THEME["warning_hover"],
+                text_color=UI_THEME["white"],
+                font=BUTTON_FONT_BOLD,
+                width=160,
+            ).pack(side="left")
+            _build_button(actions, "Cancelar", self.destroy, "neutral", use_ctk=True, width=120).pack(side="left", padx=(8, 0))
+            container.columnconfigure(1, weight=1)
+        else:
+            frame = tk.Frame(self, padx=12, pady=12, bg=UI_THEME["surface"])
+            frame.pack(fill="both", expand=True)
+            frame.columnconfigure(1, weight=1)
+            tk.Label(
+                frame,
+                text="Backup dos Talões",
+                font=("Segoe UI", 12, "bold"),
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["text"],
+            ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+            tk.Label(frame, text="Ano de referência", bg=UI_THEME["surface"], fg=UI_THEME["muted"]).grid(
+                row=1, column=0, sticky="w", pady=(0, 6)
+            )
+            tk.Entry(
+                frame,
+                textvariable=self.ano_var,
+                width=8,
+                bg=UI_THEME["surface_alt"],
+                fg=UI_THEME["text"],
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=UI_THEME["border"],
+                insertbackground=UI_THEME["text"],
+            ).grid(row=1, column=1, sticky="ew", pady=(0, 6))
+            actions = tk.Frame(frame, bg=UI_THEME["surface"])
+            actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+            _build_button(actions, "Gerar Backup SQL", self.gerar_backup, "warning").pack(side="left")
+            _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
+
+        self.transient(parent)
+        self.grab_set()
+
+    def _sql_literal(self, value):
+        if value is None:
+            return "NULL"
+        if isinstance(value, bool):
+            return "1" if value else "0"
+        if isinstance(value, datetime):
+            return f"'{value.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}'"
+        if isinstance(value, date):
+            return f"'{value.strftime('%Y-%m-%d')}'"
+        if isinstance(value, time):
+            return f"'{value.strftime('%H:%M:%S')}'"
+        if isinstance(value, (int, float)):
+            return str(value)
+        text = str(value).replace("'", "''")
+        return f"N'{text}'"
+
+    def _build_insert_block(self, table_name, columns, rows):
+        if not rows:
+            return [f"-- Nenhum registro para {table_name}."]
+        cols_sql = ", ".join(f"[{col}]" for col in columns)
+        lines = [f"SET IDENTITY_INSERT {table_name} ON;"]
+        for row in rows:
+            values_sql = ", ".join(self._sql_literal(v) for v in row)
+            lines.append(f"INSERT INTO {table_name} ({cols_sql}) VALUES ({values_sql});")
+        lines.append(f"SET IDENTITY_INSERT {table_name} OFF;")
+        return lines
+
+    def gerar_backup(self):
+        ano_txt = self.ano_var.get().strip()
+        try:
+            ano = int(ano_txt)
+        except ValueError:
+            messagebox.showwarning("Validação", "Informe um ano válido com 4 dígitos.")
+            return
+        if ano < 1900 or ano > 9999:
+            messagebox.showwarning("Validação", "Informe um ano válido entre 1900 e 9999.")
+            return
+
+        try:
+            taloes_cols, taloes_rows = self.repo.list_taloes_by_year(ano)
+            mon_cols, mon_rows = self.repo.list_monitoramento_by_year(ano)
+        except Exception:
+            logger.exception("Falha ao coletar dados para backup do ano %s", ano)
+            messagebox.showerror("Erro", "Falha ao consultar dados para backup.")
+            return
+
+        nome_base = f"backup_afis_{ano}.sql"
+        path = filedialog.asksaveasfilename(
+            title="Salvar backup SQL",
+            defaultextension=".sql",
+            initialfile=nome_base,
+            filetypes=[("SQL", "*.sql"), ("Todos os arquivos", "*.*")],
+        )
+        if not path:
+            return
+
+        lines = [
+            f"-- Backup AFIS ano {ano}",
+            "SET NOCOUNT ON;",
+            "BEGIN TRANSACTION;",
+            "BEGIN TRY",
+            "",
+            f"-- Tabela dbo.taloes ({len(taloes_rows)} registros)",
+        ]
+        lines.extend(self._build_insert_block("dbo.taloes", taloes_cols, taloes_rows))
+        lines.append("")
+        lines.append(f"-- Tabela dbo.monitoramento ({len(mon_rows)} registros)")
+        lines.extend(self._build_insert_block("dbo.monitoramento", mon_cols, mon_rows))
+        lines.extend(
+            [
+                "",
+                "COMMIT TRANSACTION;",
+                "END TRY",
+                "BEGIN CATCH",
+                "    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;",
+                "    THROW;",
+                "END CATCH;",
+                "",
+            ]
+        )
+
+        try:
+            with open(path, "w", encoding="utf-8-sig", newline="") as f:
+                f.write("\n".join(lines))
+        except Exception:
+            logger.exception("Falha ao gravar backup SQL em %s", path)
+            messagebox.showerror("Erro", "Falha ao gravar arquivo de backup.")
+            return
+
+        messagebox.showinfo(
+            "Backup concluído",
+            f"Arquivo gerado com sucesso.\nTalões: {len(taloes_rows)}\nMonitoramento: {len(mon_rows)}",
+        )
         self.destroy()
 
 
@@ -549,7 +940,7 @@ class AFISDashboard:
         style.configure("AFIS.TLabelframe.Label", background=UI_THEME["surface"], foreground=UI_THEME["muted"], font=("Segoe UI", 10, "bold"))
         style.configure("AFIS.Treeview", background=UI_THEME["surface"], foreground=UI_THEME["text"], fieldbackground=UI_THEME["surface"], rowheight=28)
         style.configure("AFIS.Treeview.Heading", background=UI_THEME["surface_alt"], foreground=UI_THEME["text"], font=("Segoe UI", 9, "bold"))
-        style.map("AFIS.Treeview.Heading", background=[("active", "#DFE7F2")])
+        style.map("AFIS.Treeview.Heading", background=[("active", UI_THEME["surface_hover"])])
         style.configure("AFIS.TCombobox", padding=4)
         if ctk is not None and isinstance(self.root, ctk.CTk):
             self.root.configure(fg_color=UI_THEME["bg"])
@@ -557,42 +948,7 @@ class AFISDashboard:
             self.root.configure(bg=UI_THEME["bg"])
 
     def _build_button(self, parent, text, command, variant="neutral"):
-        if ctk is not None:
-            cfg = {
-                "primary": (UI_THEME["primary"], UI_THEME["primary_hover"], "#FFFFFF"),
-                "success": (UI_THEME["success"], UI_THEME["success_hover"], "#FFFFFF"),
-                "warning": ("#F57C00", "#E06F00", "#FFFFFF"),
-                "neutral": ("#E2E8F0", "#CBD5E1", UI_THEME["text"]),
-            }
-            fg, hover, text_color = cfg.get(variant, cfg["neutral"])
-            return ctk.CTkButton(
-                parent,
-                text=text,
-                command=command,
-                fg_color=fg,
-                hover_color=hover,
-                text_color=text_color,
-                font=BUTTON_FONT_BOLD,
-                corner_radius=8,
-                height=34,
-            )
-        color_map = {
-            "primary": (UI_THEME["primary"], "#FFFFFF"),
-            "success": (UI_THEME["success"], "#FFFFFF"),
-            "warning": ("#F57C00", "#FFFFFF"),
-            "neutral": ("#E2E8F0", UI_THEME["text"]),
-        }
-        bg, fg = color_map.get(variant, color_map["neutral"])
-        return tk.Button(
-            parent,
-            text=text,
-            command=command,
-            bg=bg,
-            fg=fg,
-            font=BUTTON_FONT_BOLD,
-            relief="flat",
-            activebackground=bg,
-        )
+        return _build_button(parent, text, command, variant=variant, use_ctk=ctk is not None)
 
     def _build_layout(self):
         titulo = tk.Label(
@@ -600,11 +956,11 @@ class AFISDashboard:
             text="Registro Digital de Talões AFIS",
             font=("Segoe UI", 20, "bold"),
             bg=UI_THEME["bg"],
-            fg="#FFFFFF",
+            fg=UI_THEME["white"],
         )
         titulo.pack(pady=(14, 10))
 
-        form = ttk.LabelFrame(self.root, text="Cadastro de Talão", style="AFIS.TLabelframe", padding=12)
+        form = ttk.LabelFrame(self.root, text="Abertura de Talão", style="AFIS.TLabelframe", padding=12)
         form.pack(fill="x", padx=12, pady=6)
 
         info = tk.Frame(form, bg=UI_THEME["surface"])
@@ -664,7 +1020,7 @@ class AFISDashboard:
                     fg=UI_THEME["text"],
                     relief="flat",
                     highlightthickness=1,
-                    highlightbackground="#D5DEEA",
+                    highlightbackground=UI_THEME["border"],
                     insertbackground=UI_THEME["text"],
                 )
             else:
@@ -675,7 +1031,7 @@ class AFISDashboard:
                     fg=UI_THEME["text"],
                     relief="flat",
                     highlightthickness=1,
-                    highlightbackground="#D5DEEA",
+                    highlightbackground=UI_THEME["border"],
                     insertbackground=UI_THEME["text"],
                 )
 
@@ -711,6 +1067,7 @@ class AFISDashboard:
         botoes.grid(row=row, column=2, columnspan=2, sticky="ew", padx=4, pady=8)
         self._build_button(botoes, "Salvar", self.criar_talao, "success").pack(side="left", padx=4)
         self._build_button(botoes, "Editar", self.editar_selecionado, "primary").pack(side="left", padx=4)
+        self._build_button(botoes, "Backup", self.abrir_backup, "warning").pack(side="left", padx=4)
         self._build_button(botoes, "Relatórios", self.abrir_relatorios, "warning").pack(side="left", padx=4)
         self._build_button(botoes, "Atualizar", self.refresh_tree, "neutral").pack(side="left", padx=4)
         self._build_button(botoes, "Limpar", self._set_defaults, "neutral").pack(side="left", padx=4)
@@ -720,7 +1077,7 @@ class AFISDashboard:
 
         list_frame = ttk.LabelFrame(self.root, text="Talões visíveis", style="AFIS.TLabelframe", padding=12)
         list_frame.pack(fill="both", expand=True, padx=12, pady=8)
-
+        
         cols = ("talao", "boletim", "delegacia", "natureza", "status")
         self.tree = ttk.Treeview(list_frame, columns=cols, show="headings", height=15, style="AFIS.Treeview")
         self.tree.heading("talao", text="Talão")
@@ -735,9 +1092,21 @@ class AFISDashboard:
         self.tree.column("natureza", width=240)
         self.tree.column("status", width=120, anchor="center")
 
-        self.tree.tag_configure(STATUS_MONITORADO, background="#FFF9DB", foreground="#6B5600")
-        self.tree.tag_configure(STATUS_FINALIZADO, background="#EAF7EE", foreground="#1E5E36")
-        self.tree.tag_configure(STATUS_CANCELADO, background="#FDECEC", foreground="#7F1D1D")
+        self.tree.tag_configure(
+            STATUS_MONITORADO,
+            background=UI_THEME["status_monitorado_bg"],
+            foreground=UI_THEME["status_monitorado_fg"],
+        )
+        self.tree.tag_configure(
+            STATUS_FINALIZADO,
+            background=UI_THEME["status_finalizado_bg"],
+            foreground=UI_THEME["status_finalizado_fg"],
+        )
+        self.tree.tag_configure(
+            STATUS_CANCELADO,
+            background=UI_THEME["status_cancelado_bg"],
+            foreground=UI_THEME["status_cancelado_fg"],
+        )
 
         self.tree.pack(fill="both", expand=True)
 
@@ -832,7 +1201,7 @@ class AFISDashboard:
     def _set_data_bo_placeholder(self, widget):
         widget.delete(0, tk.END)
         widget.insert(0, "dd/mm/aaaa")
-        widget.configure(fg="#94A3B8")
+        widget.configure(fg=UI_THEME["placeholder"])
         self.data_bo_placeholder_active = True
 
     def _on_data_bo_focus_in(self, widget):
@@ -907,6 +1276,9 @@ class AFISDashboard:
 
     def abrir_relatorios(self):
         RelatorioPeriodoWindow(self.root, self.repo)
+
+    def abrir_backup(self):
+        BackupAnoWindow(self.root, self.repo)
 
     def refresh_tree(self, silent=False):
         for iid in self.tree.get_children():
