@@ -379,6 +379,35 @@ class SQLServerRepository:
             columns = [d[0] for d in cur.description]
             return columns, rows
 
+    def list_taloes_by_year(self, ano):
+        query = """
+        SELECT *
+        FROM dbo.taloes
+        WHERE ano = ?
+        ORDER BY id ASC;
+        """
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, ano)
+            rows = cur.fetchall()
+            columns = [d[0] for d in cur.description]
+            return columns, rows
+
+    def list_monitoramento_by_year(self, ano):
+        query = """
+        SELECT m.*
+        FROM dbo.monitoramento m
+        INNER JOIN dbo.taloes t ON t.id = m.talao_id
+        WHERE t.ano = ?
+        ORDER BY m.id ASC;
+        """
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, ano)
+            rows = cur.fetchall()
+            columns = [d[0] for d in cur.description]
+            return columns, rows
+
     def postpone_monitoring(self, talao_id, intervalo_min):
         with self._connect() as conn:
             cur = conn.cursor()

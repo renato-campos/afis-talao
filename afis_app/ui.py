@@ -1,7 +1,7 @@
 import tkinter as tk
 import csv
 import logging
-from datetime import datetime
+from datetime import date, datetime, time
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
@@ -514,6 +514,179 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         self.destroy()
 
 
+class BackupAnoWindow(tk.Toplevel):
+    def __init__(self, parent, repo):
+        super().__init__(parent)
+        self.repo = repo
+        self.title("Backup por Ano")
+        self.geometry("440x180")
+        self.resizable(False, False)
+        self.ano_var = tk.StringVar(value=str(datetime.now().year - 1))
+
+        if ctk is not None:
+            self.configure(fg_color="#F3F6FC")
+            container = ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#D5DEEA")
+            container.pack(fill="both", expand=True, padx=14, pady=14)
+
+            ctk.CTkLabel(
+                container,
+                text="Backup dos Talões",
+                font=("Segoe UI", 16, "bold"),
+                text_color=UI_THEME["text"],
+            ).grid(row=0, column=0, sticky="w", padx=14, pady=(14, 8))
+            ctk.CTkLabel(
+                container,
+                text="Ano de referência",
+                text_color=UI_THEME["muted"],
+            ).grid(row=1, column=0, sticky="w", padx=14, pady=(0, 6))
+            ctk.CTkEntry(
+                container,
+                textvariable=self.ano_var,
+                width=120,
+                fg_color=UI_THEME["surface_alt"],
+                border_width=1,
+                border_color="#D5DEEA",
+            ).grid(row=1, column=1, sticky="w", padx=14, pady=(0, 6))
+
+            actions = ctk.CTkFrame(container, fg_color="transparent")
+            actions.grid(row=2, column=0, columnspan=2, sticky="w", padx=14, pady=(6, 12))
+            ctk.CTkButton(
+                actions,
+                text="Gerar Backup SQL",
+                command=self.gerar_backup,
+                fg_color="#F57C00",
+                hover_color="#E06F00",
+                text_color="#FFFFFF",
+                font=BUTTON_FONT_BOLD,
+                width=160,
+            ).pack(side="left")
+            ctk.CTkButton(
+                actions,
+                text="Cancelar",
+                command=self.destroy,
+                fg_color="#E2E8F0",
+                hover_color="#CBD5E1",
+                text_color=UI_THEME["text"],
+                font=BUTTON_FONT_BOLD,
+                width=120,
+            ).pack(side="left", padx=(8, 0))
+        else:
+            frame = tk.Frame(self, padx=12, pady=12)
+            frame.pack(fill="both", expand=True)
+            tk.Label(frame, text="Backup dos Talões", font=("Arial", 12, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 8))
+            tk.Label(frame, text="Ano de referência").grid(row=1, column=0, sticky="w", pady=(0, 6))
+            tk.Entry(frame, textvariable=self.ano_var, width=8).grid(row=1, column=1, sticky="w", pady=(0, 6))
+            tk.Button(
+                frame,
+                text="Gerar Backup SQL",
+                command=self.gerar_backup,
+                bg="#F57C00",
+                fg="white",
+                font=BUTTON_FONT_BOLD,
+            ).grid(row=2, column=0, sticky="w", pady=(6, 0))
+            tk.Button(frame, text="Cancelar", command=self.destroy, font=BUTTON_FONT_BOLD).grid(
+                row=2, column=1, sticky="w", padx=(8, 0), pady=(6, 0)
+            )
+
+        self.transient(parent)
+        self.grab_set()
+
+    def _sql_literal(self, value):
+        if value is None:
+            return "NULL"
+        if isinstance(value, bool):
+            return "1" if value else "0"
+        if isinstance(value, datetime):
+            return f"'{value.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}'"
+        if isinstance(value, date):
+            return f"'{value.strftime('%Y-%m-%d')}'"
+        if isinstance(value, time):
+            return f"'{value.strftime('%H:%M:%S')}'"
+        if isinstance(value, (int, float)):
+            return str(value)
+        text = str(value).replace("'", "''")
+        return f"N'{text}'"
+
+    def _build_insert_block(self, table_name, columns, rows):
+        if not rows:
+            return [f"-- Nenhum registro para {table_name}."]
+        cols_sql = ", ".join(f"[{col}]" for col in columns)
+        lines = [f"SET IDENTITY_INSERT {table_name} ON;"]
+        for row in rows:
+            values_sql = ", ".join(self._sql_literal(v) for v in row)
+            lines.append(f"INSERT INTO {table_name} ({cols_sql}) VALUES ({values_sql});")
+        lines.append(f"SET IDENTITY_INSERT {table_name} OFF;")
+        return lines
+
+    def gerar_backup(self):
+        ano_txt = self.ano_var.get().strip()
+        try:
+            ano = int(ano_txt)
+        except ValueError:
+            messagebox.showwarning("Validação", "Informe um ano válido com 4 dígitos.")
+            return
+        if ano < 1900 or ano > 9999:
+            messagebox.showwarning("Validação", "Informe um ano válido entre 1900 e 9999.")
+            return
+
+        try:
+            taloes_cols, taloes_rows = self.repo.list_taloes_by_year(ano)
+            mon_cols, mon_rows = self.repo.list_monitoramento_by_year(ano)
+        except Exception:
+            logger.exception("Falha ao coletar dados para backup do ano %s", ano)
+            messagebox.showerror("Erro", "Falha ao consultar dados para backup.")
+            return
+
+        nome_base = f"backup_afis_{ano}.sql"
+        path = filedialog.asksaveasfilename(
+            title="Salvar backup SQL",
+            defaultextension=".sql",
+            initialfile=nome_base,
+            filetypes=[("SQL", "*.sql"), ("Todos os arquivos", "*.*")],
+        )
+        if not path:
+            return
+
+        lines = [
+            f"-- Backup AFIS ano {ano}",
+            "SET NOCOUNT ON;",
+            "BEGIN TRANSACTION;",
+            "BEGIN TRY",
+            "",
+            f"-- Tabela dbo.taloes ({len(taloes_rows)} registros)",
+        ]
+        lines.extend(self._build_insert_block("dbo.taloes", taloes_cols, taloes_rows))
+        lines.append("")
+        lines.append(f"-- Tabela dbo.monitoramento ({len(mon_rows)} registros)")
+        lines.extend(self._build_insert_block("dbo.monitoramento", mon_cols, mon_rows))
+        lines.extend(
+            [
+                "",
+                "COMMIT TRANSACTION;",
+                "END TRY",
+                "BEGIN CATCH",
+                "    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;",
+                "    THROW;",
+                "END CATCH;",
+                "",
+            ]
+        )
+
+        try:
+            with open(path, "w", encoding="utf-8-sig", newline="") as f:
+                f.write("\n".join(lines))
+        except Exception:
+            logger.exception("Falha ao gravar backup SQL em %s", path)
+            messagebox.showerror("Erro", "Falha ao gravar arquivo de backup.")
+            return
+
+        messagebox.showinfo(
+            "Backup concluído",
+            f"Arquivo gerado com sucesso.\nTalões: {len(taloes_rows)}\nMonitoramento: {len(mon_rows)}",
+        )
+        self.destroy()
+
+
 class AFISDashboard:
     ALERT_POLL_MS = 60000
     AUTO_REFRESH_MS = 60000
@@ -711,6 +884,7 @@ class AFISDashboard:
         botoes.grid(row=row, column=2, columnspan=2, sticky="ew", padx=4, pady=8)
         self._build_button(botoes, "Salvar", self.criar_talao, "success").pack(side="left", padx=4)
         self._build_button(botoes, "Editar", self.editar_selecionado, "primary").pack(side="left", padx=4)
+        self._build_button(botoes, "Backup", self.abrir_backup, "warning").pack(side="left", padx=4)
         self._build_button(botoes, "Relatórios", self.abrir_relatorios, "warning").pack(side="left", padx=4)
         self._build_button(botoes, "Atualizar", self.refresh_tree, "neutral").pack(side="left", padx=4)
         self._build_button(botoes, "Limpar", self._set_defaults, "neutral").pack(side="left", padx=4)
@@ -907,6 +1081,9 @@ class AFISDashboard:
 
     def abrir_relatorios(self):
         RelatorioPeriodoWindow(self.root, self.repo)
+
+    def abrir_backup(self):
+        BackupAnoWindow(self.root, self.repo)
 
     def refresh_tree(self, silent=False):
         for iid in self.tree.get_children():
