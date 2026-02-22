@@ -1,6 +1,7 @@
 import tkinter as tk
 import logging
 from datetime import datetime
+from pathlib import Path
 from tkinter import messagebox, ttk
 
 try:
@@ -19,10 +20,27 @@ from .constants import (
     STATUS_MONITORADO,
     STATUS_OPCOES,
 )
+from .config import get_env
 from .repository import ConcurrencyError, DuplicateTalaoError
 from .validators import normalize_and_validate
 
 logger = logging.getLogger(__name__)
+
+UI_THEME = {
+    "bg": "#1941B7",
+    "header": "#1941B7",
+    "surface": "#FFFFFF",
+    "surface_alt": "#EEF3FA",
+    "text": "#0F172A",
+    "muted": "#334155",
+    "primary": "#0B63CE",
+    "primary_hover": "#0A54AE",
+    "success": "#1F8A4D",
+    "success_hover": "#18703E",
+    "danger": "#C0392B",
+}
+WATERMARK_MAX_WIDTH = 2560
+WATERMARK_MAX_HEIGHT = 1440
 
 ALERT_INTERVAL_OPTIONS = [
     ("1 min", 1),
@@ -52,8 +70,9 @@ class TalaoEditor(tk.Toplevel):
         self.talao_id = talao_id
         self.on_saved = on_saved
         self.title("Editar Talão")
-        self.geometry("650x620")
+        self.geometry("700x680")
         self.resizable(False, False)
+        self.configure(bg=UI_THEME["bg"])
 
         self.widgets = {}
         self.intervalo_var = tk.StringVar(value=str(intervalo_min))
@@ -66,22 +85,60 @@ class TalaoEditor(tk.Toplevel):
             return
         self.record = record
 
-        tk.Label(self, text=f"Talão {format_talao(record.get('ano'), record.get('talao'))}", font=("Arial", 12, "bold")).grid(
-            row=row, column=0, columnspan=2, sticky="w", padx=12, pady=(10, 12)
-        )
+        header = tk.Frame(self, bg=UI_THEME["bg"])
+        header.grid(row=row, column=0, columnspan=2, sticky="ew", padx=14, pady=(12, 10))
+        tk.Label(
+            header,
+            text="Edição de Talão",
+            font=("Segoe UI", 16, "bold"),
+            bg=UI_THEME["bg"],
+            fg=UI_THEME["text"],
+        ).pack(anchor="w")
+        tk.Label(
+            header,
+            text=f"Talão {format_talao(record.get('ano'), record.get('talao'))}",
+            font=("Segoe UI", 10, "bold"),
+            bg=UI_THEME["bg"],
+            fg=UI_THEME["muted"],
+        ).pack(anchor="w", pady=(2, 0))
         row += 1
 
         for key in EDITABLE_FIELDS:
-            tk.Label(self, text=FIELD_LABELS[key]).grid(row=row, column=0, sticky="w", padx=12, pady=4)
+            tk.Label(
+                self,
+                text=FIELD_LABELS[key],
+                bg=UI_THEME["bg"],
+                fg=UI_THEME["muted"],
+                font=("Segoe UI", 9),
+            ).grid(row=row, column=0, sticky="w", padx=14, pady=4)
 
             if key == "status":
-                widget = ttk.Combobox(self, values=STATUS_OPCOES, state="readonly")
+                widget = ttk.Combobox(self, values=STATUS_OPCOES, state="readonly", style="AFIS.TCombobox")
                 widget.set(str(record.get(key) or STATUS_MONITORADO))
             elif key == "observacao":
-                widget = tk.Text(self, height=4, width=40)
+                widget = tk.Text(
+                    self,
+                    height=4,
+                    width=40,
+                    bg=UI_THEME["surface_alt"],
+                    fg=UI_THEME["text"],
+                    relief="flat",
+                    highlightthickness=1,
+                    highlightbackground="#D5DEEA",
+                    insertbackground=UI_THEME["text"],
+                )
                 widget.insert("1.0", str(record.get(key) or ""))
             else:
-                widget = tk.Entry(self, width=45)
+                widget = tk.Entry(
+                    self,
+                    width=45,
+                    bg=UI_THEME["surface_alt"],
+                    fg=UI_THEME["text"],
+                    relief="flat",
+                    highlightthickness=1,
+                    highlightbackground="#D5DEEA",
+                    insertbackground=UI_THEME["text"],
+                )
                 value = record.get(key)
                 if value is None:
                     value_str = ""
@@ -91,23 +148,69 @@ class TalaoEditor(tk.Toplevel):
                     value_str = str(value)
                 widget.insert(0, value_str)
 
-            widget.grid(row=row, column=1, sticky="ew", padx=12, pady=4)
+            widget.grid(row=row, column=1, sticky="ew", padx=14, pady=4)
             self.widgets[key] = widget
             row += 1
 
-        tk.Label(self, text="Intervalo de alerta (min)").grid(row=row, column=0, sticky="w", padx=12, pady=8)
+        tk.Label(
+            self,
+            text="Intervalo de alerta (min)",
+            bg=UI_THEME["bg"],
+            fg=UI_THEME["muted"],
+            font=("Segoe UI", 9),
+        ).grid(row=row, column=0, sticky="w", padx=14, pady=8)
         ttk.Combobox(
             self,
             textvariable=self.intervalo_var,
             state="readonly",
             values=[str(minutes) for _, minutes in ALERT_INTERVAL_OPTIONS],
+            style="AFIS.TCombobox",
         ).grid(
-            row=row, column=1, sticky="w", padx=12, pady=8
+            row=row, column=1, sticky="w", padx=14, pady=8
         )
         row += 1
 
-        btn = tk.Button(self, text="Salvar", bg="#1565C0", fg="white", command=self.save)
-        btn.grid(row=row, column=0, columnspan=2, sticky="ew", padx=12, pady=12)
+        actions = tk.Frame(self, bg=UI_THEME["bg"])
+        actions.grid(row=row, column=0, columnspan=2, sticky="ew", padx=14, pady=(8, 12))
+        if ctk is not None:
+            ctk.CTkButton(
+                actions,
+                text="Salvar Alterações",
+                command=self.save,
+                fg_color=UI_THEME["primary"],
+                hover_color=UI_THEME["primary_hover"],
+                text_color="#FFFFFF",
+                corner_radius=8,
+                height=34,
+            ).pack(side="left", padx=(0, 8))
+            ctk.CTkButton(
+                actions,
+                text="Cancelar",
+                command=self.destroy,
+                fg_color="#E2E8F0",
+                hover_color="#CBD5E1",
+                text_color=UI_THEME["text"],
+                corner_radius=8,
+                height=34,
+            ).pack(side="left")
+        else:
+            tk.Button(
+                actions,
+                text="Salvar Alterações",
+                command=self.save,
+                bg=UI_THEME["primary"],
+                fg="white",
+                relief="flat",
+                activebackground=UI_THEME["primary_hover"],
+            ).pack(side="left", padx=(0, 8))
+            tk.Button(
+                actions,
+                text="Cancelar",
+                command=self.destroy,
+                bg="#E2E8F0",
+                fg=UI_THEME["text"],
+                relief="flat",
+            ).pack(side="left")
 
         self.columnconfigure(1, weight=1)
         self.transient(parent)
@@ -176,30 +279,93 @@ class AFISDashboard:
 
         self.root.title("Registro AFIS - CECOP")
         self.root.geometry("1080x760")
+        self._apply_theme()
 
         self.intervalo_map = dict(ALERT_INTERVAL_OPTIONS)
 
         self.widgets = {}
+        self.watermark_image = None
+        self.watermark_label = None
+        self.data_bo_placeholder_active = False
         self.proximo_talao_var = tk.StringVar(value="-")
         self.alerta_var = tk.StringVar(value=DEFAULT_ALERT_INTERVAL_LABEL)
 
+        self._setup_watermark()
         self._build_layout()
         self._set_defaults()
         self.refresh_tree()
         self.root.after(self.AUTO_REFRESH_MS, self._auto_refresh)
         self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
 
-    def _build_layout(self):
-        titulo = tk.Label(self.root, text="Registro Digital de Talões AFIS", font=("Arial", 16, "bold"))
-        titulo.pack(pady=10)
+    def _apply_theme(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("AFIS.TLabelframe", background=UI_THEME["surface"], borderwidth=1)
+        style.configure("AFIS.TLabelframe.Label", background=UI_THEME["surface"], foreground=UI_THEME["muted"], font=("Segoe UI", 10, "bold"))
+        style.configure("AFIS.Treeview", background=UI_THEME["surface"], foreground=UI_THEME["text"], fieldbackground=UI_THEME["surface"], rowheight=28)
+        style.configure("AFIS.Treeview.Heading", background=UI_THEME["surface_alt"], foreground=UI_THEME["text"], font=("Segoe UI", 9, "bold"))
+        style.map("AFIS.Treeview.Heading", background=[("active", "#DFE7F2")])
+        style.configure("AFIS.TCombobox", padding=4)
+        if ctk is not None and isinstance(self.root, ctk.CTk):
+            self.root.configure(fg_color=UI_THEME["bg"])
+        else:
+            self.root.configure(bg=UI_THEME["bg"])
 
-        form = tk.LabelFrame(self.root, text="Cadastro de Talão", padx=10, pady=10)
+    def _build_button(self, parent, text, command, variant="neutral"):
+        if ctk is not None:
+            cfg = {
+                "primary": (UI_THEME["primary"], UI_THEME["primary_hover"], "#FFFFFF"),
+                "success": (UI_THEME["success"], UI_THEME["success_hover"], "#FFFFFF"),
+                "neutral": ("#E2E8F0", "#CBD5E1", UI_THEME["text"]),
+            }
+            fg, hover, text_color = cfg.get(variant, cfg["neutral"])
+            return ctk.CTkButton(
+                parent,
+                text=text,
+                command=command,
+                fg_color=fg,
+                hover_color=hover,
+                text_color=text_color,
+                corner_radius=8,
+                height=34,
+            )
+        color_map = {
+            "primary": (UI_THEME["primary"], "#FFFFFF"),
+            "success": (UI_THEME["success"], "#FFFFFF"),
+            "neutral": ("#E2E8F0", UI_THEME["text"]),
+        }
+        bg, fg = color_map.get(variant, color_map["neutral"])
+        return tk.Button(parent, text=text, command=command, bg=bg, fg=fg, relief="flat", activebackground=bg)
+
+    def _build_layout(self):
+        titulo = tk.Label(
+            self.root,
+            text="Registro Digital de Talões AFIS",
+            font=("Segoe UI", 20, "bold"),
+            bg=UI_THEME["bg"],
+            fg="#FFFFFF",
+        )
+        titulo.pack(pady=(14, 10))
+
+        form = ttk.LabelFrame(self.root, text="Cadastro de Talão", style="AFIS.TLabelframe", padding=12)
         form.pack(fill="x", padx=12, pady=6)
 
-        info = tk.Frame(form)
+        info = tk.Frame(form, bg=UI_THEME["surface"])
         info.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 6))
-        tk.Label(info, text="Próximo Talão (ano atual):", font=("Arial", 9, "bold")).pack(side="left")
-        tk.Label(info, textvariable=self.proximo_talao_var, fg="#0D47A1", font=("Arial", 9, "bold")).pack(side="left", padx=6)
+        tk.Label(
+            info,
+            text="Próximo Talão (ano atual):",
+            font=("Segoe UI", 10, "bold"),
+            bg=UI_THEME["surface"],
+            fg=UI_THEME["muted"],
+        ).pack(side="left")
+        tk.Label(
+            info,
+            textvariable=self.proximo_talao_var,
+            fg=UI_THEME["primary"],
+            bg=UI_THEME["surface"],
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side="left", padx=6)
 
         layout_fields = [
             "delegacia",
@@ -218,18 +384,48 @@ class AFISDashboard:
         row = 1
         col = 0
         for key in layout_fields:
-            tk.Label(form, text=FIELD_LABELS[key]).grid(row=row, column=col, sticky="w", pady=4, padx=4)
+            label_text = FIELD_LABELS[key]
+            if key == "data_bo":
+                label_text = "Data BO"
+            tk.Label(
+                form,
+                text=label_text,
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["muted"],
+                font=("Segoe UI", 9),
+            ).grid(row=row, column=col, sticky="w", pady=4, padx=4)
 
             if key == "status":
-                widget = ttk.Combobox(form, values=STATUS_OPCOES, state="readonly", width=28)
+                widget = ttk.Combobox(form, values=STATUS_OPCOES, state="readonly", width=28, style="AFIS.TCombobox")
                 widget.set(STATUS_MONITORADO)
             elif key == "observacao":
-                widget = tk.Text(form, width=35, height=3)
+                widget = tk.Text(
+                    form,
+                    width=35,
+                    height=3,
+                    bg=UI_THEME["surface_alt"],
+                    fg=UI_THEME["text"],
+                    relief="flat",
+                    highlightthickness=1,
+                    highlightbackground="#D5DEEA",
+                    insertbackground=UI_THEME["text"],
+                )
             else:
-                widget = tk.Entry(form, width=32)
+                widget = tk.Entry(
+                    form,
+                    width=32,
+                    bg=UI_THEME["surface_alt"],
+                    fg=UI_THEME["text"],
+                    relief="flat",
+                    highlightthickness=1,
+                    highlightbackground="#D5DEEA",
+                    insertbackground=UI_THEME["text"],
+                )
 
             widget.grid(row=row, column=col + 1, sticky="ew", pady=4, padx=4)
             self.widgets[key] = widget
+            if key == "data_bo":
+                self._bind_data_bo_placeholder(widget)
 
             if col == 2:
                 col = 0
@@ -238,25 +434,37 @@ class AFISDashboard:
                 col = 2
 
         row += 1
-        tk.Label(form, text="Intervalo de alerta").grid(row=row, column=0, sticky="w", padx=4, pady=8)
-        combo_alerta = ttk.Combobox(form, textvariable=self.alerta_var, state="readonly", values=list(self.intervalo_map.keys()))
+        tk.Label(
+            form,
+            text="Intervalo de alerta",
+            bg=UI_THEME["surface"],
+            fg=UI_THEME["muted"],
+            font=("Segoe UI", 9),
+        ).grid(row=row, column=0, sticky="w", padx=4, pady=8)
+        combo_alerta = ttk.Combobox(
+            form,
+            textvariable=self.alerta_var,
+            state="readonly",
+            values=list(self.intervalo_map.keys()),
+            style="AFIS.TCombobox",
+        )
         combo_alerta.grid(row=row, column=1, sticky="w", padx=4, pady=8)
 
-        botoes = tk.Frame(form)
+        botoes = tk.Frame(form, bg=UI_THEME["surface"])
         botoes.grid(row=row, column=2, columnspan=2, sticky="ew", padx=4, pady=8)
-        tk.Button(botoes, text="Salvar", bg="#2E7D32", fg="white", command=self.criar_talao).pack(side="left", padx=4)
-        tk.Button(botoes, text="Editar", bg="#1565C0", fg="white", command=self.editar_selecionado).pack(side="left", padx=4)
-        tk.Button(botoes, text="Atualizar", command=self.refresh_tree).pack(side="left", padx=4)
-        tk.Button(botoes, text="Limpar", command=self._set_defaults).pack(side="left", padx=4)
+        self._build_button(botoes, "Salvar", self.criar_talao, "success").pack(side="left", padx=4)
+        self._build_button(botoes, "Editar", self.editar_selecionado, "primary").pack(side="left", padx=4)
+        self._build_button(botoes, "Atualizar", self.refresh_tree, "neutral").pack(side="left", padx=4)
+        self._build_button(botoes, "Limpar", self._set_defaults, "neutral").pack(side="left", padx=4)
 
         for col_idx in (1, 3):
             form.grid_columnconfigure(col_idx, weight=1)
 
-        list_frame = tk.LabelFrame(self.root, text="Talões visíveis", padx=10, pady=10)
+        list_frame = ttk.LabelFrame(self.root, text="Talões visíveis", style="AFIS.TLabelframe", padding=12)
         list_frame.pack(fill="both", expand=True, padx=12, pady=8)
 
         cols = ("talao", "boletim", "delegacia", "natureza", "status")
-        self.tree = ttk.Treeview(list_frame, columns=cols, show="headings", height=15)
+        self.tree = ttk.Treeview(list_frame, columns=cols, show="headings", height=15, style="AFIS.Treeview")
         self.tree.heading("talao", text="Talão")
         self.tree.heading("boletim", text="Boletim")
         self.tree.heading("delegacia", text="Delegacia")
@@ -269,9 +477,9 @@ class AFISDashboard:
         self.tree.column("natureza", width=240)
         self.tree.column("status", width=120, anchor="center")
 
-        self.tree.tag_configure(STATUS_MONITORADO, background="#FFFDE7")
-        self.tree.tag_configure(STATUS_FINALIZADO, background="#E8F5E9")
-        self.tree.tag_configure(STATUS_CANCELADO, background="#FFEBEE")
+        self.tree.tag_configure(STATUS_MONITORADO, background="#FFF9DB", foreground="#6B5600")
+        self.tree.tag_configure(STATUS_FINALIZADO, background="#EAF7EE", foreground="#1E5E36")
+        self.tree.tag_configure(STATUS_CANCELADO, background="#FDECEC", foreground="#7F1D1D")
 
         self.tree.pack(fill="both", expand=True)
 
@@ -302,7 +510,48 @@ class AFISDashboard:
                 widget.delete(0, tk.END)
                 widget.insert(0, value)
 
+        data_bo_widget = self.widgets.get("data_bo")
+        if data_bo_widget is not None:
+            self._set_data_bo_placeholder(data_bo_widget)
         self._refresh_proximo_talao()
+
+    def _resolve_asset_path(self, path_value):
+        if not path_value:
+            return None
+        candidate = Path(path_value).expanduser()
+        if candidate.is_absolute():
+            return candidate
+        project_root = Path(__file__).resolve().parent.parent
+        return (project_root / candidate).resolve()
+
+    def _load_watermark_image(self):
+        image_path = self._resolve_asset_path(get_env("APP_WATERMARK_IMAGE_PATH") or get_env("APP_HEADER_IMAGE_PATH"))
+        if not image_path or not image_path.exists():
+            return None
+        try:
+            image = tk.PhotoImage(file=str(image_path))
+            width = image.width()
+            height = image.height()
+            if width <= 0 or height <= 0:
+                return image
+
+            width_ratio = (width + WATERMARK_MAX_WIDTH - 1) // WATERMARK_MAX_WIDTH
+            height_ratio = (height + WATERMARK_MAX_HEIGHT - 1) // WATERMARK_MAX_HEIGHT
+            scale = max(1, width_ratio, height_ratio)
+            if scale > 1:
+                image = image.subsample(scale, scale)
+            return image
+        except Exception:
+            logger.warning("Falha ao carregar imagem da marca d'água em %s", image_path, exc_info=True)
+            return None
+
+    def _setup_watermark(self):
+        self.watermark_image = self._load_watermark_image()
+        if self.watermark_image is None:
+            return
+        self.watermark_label = tk.Label(self.root, image=self.watermark_image, bg=UI_THEME["bg"], borderwidth=0, highlightthickness=0)
+        self.watermark_label.place(relx=0.5, rely=0.56, anchor="center")
+        self.watermark_label.lower()
 
     def _collect_form_data(self):
         data = {}
@@ -310,8 +559,36 @@ class AFISDashboard:
             if isinstance(widget, tk.Text):
                 data[key] = widget.get("1.0", tk.END).strip()
             else:
-                data[key] = widget.get().strip()
+                if key == "data_bo" and self.data_bo_placeholder_active:
+                    data[key] = ""
+                else:
+                    data[key] = widget.get().strip()
         return data
+
+    def _bind_data_bo_placeholder(self, widget):
+        widget.bind("<FocusIn>", lambda _e: self._on_data_bo_focus_in(widget))
+        widget.bind("<FocusOut>", lambda _e: self._on_data_bo_focus_out(widget))
+        widget.bind("<KeyPress>", lambda e: self._on_data_bo_key_press(widget, e))
+
+    def _set_data_bo_placeholder(self, widget):
+        widget.delete(0, tk.END)
+        widget.insert(0, "dd/mm/aaaa")
+        widget.configure(fg="#94A3B8")
+        self.data_bo_placeholder_active = True
+
+    def _on_data_bo_focus_in(self, widget):
+        if self.data_bo_placeholder_active:
+            widget.icursor(0)
+
+    def _on_data_bo_focus_out(self, widget):
+        if not widget.get().strip():
+            self._set_data_bo_placeholder(widget)
+
+    def _on_data_bo_key_press(self, widget, event):
+        if self.data_bo_placeholder_active and (event.char and event.char.isprintable()):
+            widget.delete(0, tk.END)
+            widget.configure(fg=UI_THEME["text"])
+            self.data_bo_placeholder_active = False
 
     def _refresh_proximo_talao(self):
         try:
