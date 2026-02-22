@@ -28,16 +28,30 @@ from .validators import normalize_and_validate
 logger = logging.getLogger(__name__)
 
 UI_THEME = {
-    "bg": "#1941B7",
+    "bg": "#585858",
     "header": "#1941B7",
-    "surface": "#FFFFFF",
+    "surface": "#F4F2DD",
     "surface_alt": "#EEF3FA",
+    "surface_hover": "#DFE7F2",
     "text": "#0F172A",
     "muted": "#334155",
     "primary": "#0B63CE",
     "primary_hover": "#0A54AE",
     "success": "#1F8A4D",
     "success_hover": "#18703E",
+    "warning": "#F57C00",
+    "warning_hover": "#E06F00",
+    "neutral": "#E2E8F0",
+    "neutral_hover": "#CBD5E1",
+    "border": "#D5DEEA",
+    "placeholder": "#94A3B8",
+    "white": "#FFFFFF",
+    "status_monitorado_bg": "#FFF9DB",
+    "status_monitorado_fg": "#6B5600",
+    "status_finalizado_bg": "#EAF7EE",
+    "status_finalizado_fg": "#1E5E36",
+    "status_cancelado_bg": "#FDECEC",
+    "status_cancelado_fg": "#7F1D1D",
     "danger": "#C0392B",
 }
 BUTTON_FONT_BOLD = ("Segoe UI", 11, "bold")
@@ -74,6 +88,48 @@ def _normalize_user_text(value, field_name):
     return text.upper()
 
 
+def _apply_toplevel_theme(window, bg_key="bg"):
+    if ctk is not None and isinstance(window, ctk.CTkToplevel):
+        window.configure(fg_color=UI_THEME[bg_key])
+    else:
+        window.configure(bg=UI_THEME[bg_key])
+
+
+def _build_button(parent, text, command, variant="neutral", use_ctk=False, width=None):
+    cfg = {
+        "primary": (UI_THEME["primary"], UI_THEME["primary_hover"], UI_THEME["white"]),
+        "success": (UI_THEME["success"], UI_THEME["success_hover"], UI_THEME["white"]),
+        "warning": (UI_THEME["warning"], UI_THEME["warning_hover"], UI_THEME["white"]),
+        "neutral": (UI_THEME["neutral"], UI_THEME["neutral_hover"], UI_THEME["text"]),
+    }
+    fg, hover, text_color = cfg.get(variant, cfg["neutral"])
+    if use_ctk and ctk is not None:
+        button_kwargs = {
+            "text": text,
+            "command": command,
+            "fg_color": fg,
+            "hover_color": hover,
+            "text_color": text_color,
+            "font": BUTTON_FONT_BOLD,
+            "corner_radius": 8,
+            "height": 34,
+        }
+        if width is not None:
+            button_kwargs["width"] = width
+        return ctk.CTkButton(parent, **button_kwargs)
+    return tk.Button(
+        parent,
+        text=text,
+        command=command,
+        bg=fg,
+        fg=text_color,
+        font=BUTTON_FONT_BOLD,
+        relief="flat",
+        activebackground=hover,
+        activeforeground=text_color,
+    )
+
+
 class TalaoEditor(tk.Toplevel):
     def __init__(self, parent, repo, talao_id, intervalo_min, on_saved):
         super().__init__(parent)
@@ -81,7 +137,7 @@ class TalaoEditor(tk.Toplevel):
         self.talao_id = talao_id
         self.on_saved = on_saved
         self.title("Editar Talão")
-        self.geometry("650x530")
+        self.geometry("650x560")
         self.resizable(False, False)
         self.use_ctk = ctk is not None
 
@@ -89,6 +145,8 @@ class TalaoEditor(tk.Toplevel):
         self.intervalo_var = tk.StringVar(value=str(intervalo_min))
         self.data_bo_placeholder_active = False
         self.form_parent = self
+
+        _apply_toplevel_theme(self, bg_key="surface")
 
         row = 0
         record = self.repo.get_talao(talao_id)
@@ -99,13 +157,12 @@ class TalaoEditor(tk.Toplevel):
         self.record = record
 
         if self.use_ctk:
-            self.configure(fg_color="#F3F6FC")
             self.form_parent = ctk.CTkFrame(
                 self,
-                fg_color="#FFFFFF",
+                fg_color=UI_THEME["surface"],
                 corner_radius=12,
                 border_width=1,
-                border_color="#D5DEEA",
+                border_color=UI_THEME["border"],
             )
             self.form_parent.pack(fill="both", expand=True, padx=14, pady=14)
             ctk.CTkLabel(
@@ -115,7 +172,13 @@ class TalaoEditor(tk.Toplevel):
                 text_color=UI_THEME["text"],
             ).grid(row=row, column=0, columnspan=2, sticky="w", padx=14, pady=(14, 12))
         else:
-            tk.Label(self, text=f"Talão {format_talao(record.get('ano'), record.get('talao'))}", font=("Arial", 12, "bold")).grid(
+            tk.Label(
+                self,
+                text=f"Talão {format_talao(record.get('ano'), record.get('talao'))}",
+                font=("Segoe UI", 12, "bold"),
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["text"],
+            ).grid(
                 row=row, column=0, columnspan=2, sticky="w", padx=12, pady=(10, 12)
             )
         row += 1
@@ -132,7 +195,13 @@ class TalaoEditor(tk.Toplevel):
                     text_color=UI_THEME["muted"],
                 ).grid(row=row, column=0, sticky="w", padx=14, pady=4)
             else:
-                tk.Label(self, text=label_text).grid(row=row, column=0, sticky="w", padx=12, pady=4)
+                tk.Label(
+                    self,
+                    text=label_text,
+                    bg=UI_THEME["surface"],
+                    fg=UI_THEME["muted"],
+                    font=("Segoe UI", 10),
+                ).grid(row=row, column=0, sticky="w", padx=12, pady=4)
 
             if key == "status":
                 if self.use_ctk:
@@ -154,10 +223,20 @@ class TalaoEditor(tk.Toplevel):
                         height=96,
                         fg_color=UI_THEME["surface_alt"],
                         border_width=1,
-                        border_color="#D5DEEA",
+                        border_color=UI_THEME["border"],
                     )
                 else:
-                    widget = tk.Text(self, height=4, width=40)
+                    widget = tk.Text(
+                        self,
+                        height=4,
+                        width=40,
+                        bg=UI_THEME["surface_alt"],
+                        fg=UI_THEME["text"],
+                        relief="flat",
+                        highlightthickness=1,
+                        highlightbackground=UI_THEME["border"],
+                        insertbackground=UI_THEME["text"],
+                    )
                 widget.insert("1.0", str(record.get(key) or ""))
             else:
                 if self.use_ctk:
@@ -166,11 +245,20 @@ class TalaoEditor(tk.Toplevel):
                         width=430,
                         fg_color=UI_THEME["surface_alt"],
                         border_width=1,
-                        border_color="#D5DEEA",
+                        border_color=UI_THEME["border"],
                         text_color=UI_THEME["text"],
                     )
                 else:
-                    widget = tk.Entry(self, width=45)
+                    widget = tk.Entry(
+                        self,
+                        width=45,
+                        bg=UI_THEME["surface_alt"],
+                        fg=UI_THEME["text"],
+                        relief="flat",
+                        highlightthickness=1,
+                        highlightbackground=UI_THEME["border"],
+                        insertbackground=UI_THEME["text"],
+                    )
                 value = record.get(key)
                 if value is None:
                     value_str = ""
@@ -206,12 +294,19 @@ class TalaoEditor(tk.Toplevel):
                 width=180,
             ).grid(row=row, column=1, sticky="w", padx=14, pady=8)
         else:
-            tk.Label(self, text="Alerta (min)").grid(row=row, column=0, sticky="w", padx=12, pady=8)
+            tk.Label(
+                self,
+                text="Alerta (min)",
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["muted"],
+                font=("Segoe UI", 10),
+            ).grid(row=row, column=0, sticky="w", padx=12, pady=8)
             ttk.Combobox(
                 self,
                 textvariable=self.intervalo_var,
                 state="readonly",
                 values=[str(minutes) for _, minutes in ALERT_INTERVAL_OPTIONS],
+                style="AFIS.TCombobox",
             ).grid(
                 row=row, column=1, sticky="w", padx=12, pady=8
             )
@@ -226,27 +321,18 @@ class TalaoEditor(tk.Toplevel):
                 command=self.save,
                 fg_color=UI_THEME["primary"],
                 hover_color=UI_THEME["primary_hover"],
-                text_color="#FFFFFF",
+                text_color=UI_THEME["white"],
                 font=BUTTON_FONT_BOLD,
                 corner_radius=8,
                 height=34,
                 width=130,
             ).pack(side="left")
-            ctk.CTkButton(
-                actions,
-                text="Cancelar",
-                command=self.destroy,
-                fg_color="#E2E8F0",
-                hover_color="#CBD5E1",
-                text_color=UI_THEME["text"],
-                font=BUTTON_FONT_BOLD,
-                corner_radius=8,
-                height=34,
-                width=130,
-            ).pack(side="left", padx=(8, 0))
+            _build_button(actions, "Cancelar", self.destroy, "neutral", use_ctk=True, width=130).pack(side="left", padx=(8, 0))
         else:
-            btn = tk.Button(self, text="Salvar", bg="#1565C0", fg="white", font=BUTTON_FONT_BOLD, command=self.save)
-            btn.grid(row=row, column=0, columnspan=2, sticky="ew", padx=12, pady=12)
+            actions = tk.Frame(self, bg=UI_THEME["surface"])
+            actions.grid(row=row, column=0, columnspan=2, sticky="ew", padx=12, pady=12)
+            _build_button(actions, "Salvar", self.save, "primary").pack(side="left")
+            _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self.form_parent.columnconfigure(1, weight=1)
         self.transient(parent)
@@ -284,7 +370,7 @@ class TalaoEditor(tk.Toplevel):
     def _set_data_bo_placeholder(self, widget):
         widget.delete(0, tk.END)
         widget.insert(0, "dd/mm/aaaa")
-        self._set_entry_text_color(widget, "#94A3B8")
+        self._set_entry_text_color(widget, UI_THEME["placeholder"])
         self.data_bo_placeholder_active = True
 
     def _on_data_bo_focus_in(self, widget):
@@ -348,10 +434,18 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         self.geometry("300x160")
         self.resizable(False, False)
         self.date_placeholder_active = {"inicio": False, "fim": False}
+        self.use_ctk = ctk is not None
 
-        if ctk is not None:
-            self.configure(fg_color="#F3F6FC")
-            container = ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#D5DEEA")
+        _apply_toplevel_theme(self)
+
+        if self.use_ctk:
+            container = ctk.CTkFrame(
+                self,
+                fg_color=UI_THEME["surface"],
+                corner_radius=12,
+                border_width=1,
+                border_color=UI_THEME["border"],
+            )
             container.pack(fill="both", expand=True, padx=14, pady=14)
 
             ctk.CTkLabel(
@@ -379,45 +473,58 @@ class RelatorioPeriodoWindow(tk.Toplevel):
                 actions,
                 text="Gerar CSV",
                 command=self.gerar_csv,
-                fg_color="#F57C00",
-                hover_color="#E06F00",
-                text_color="#FFFFFF",
+                fg_color=UI_THEME["warning"],
+                hover_color=UI_THEME["warning_hover"],
+                text_color=UI_THEME["white"],
                 font=BUTTON_FONT_BOLD,
                 width=120,
             ).pack(side="left")
-            ctk.CTkButton(
-                actions,
-                text="Cancelar",
-                command=self.destroy,
-                fg_color="#E2E8F0",
-                hover_color="#CBD5E1",
-                text_color=UI_THEME["text"],
-                font=BUTTON_FONT_BOLD,
-                width=120,
-            ).pack(side="left", padx=(8, 0))
+            _build_button(actions, "Cancelar", self.destroy, "neutral", use_ctk=True, width=120).pack(side="left", padx=(8, 0))
 
             container.columnconfigure(1, weight=1)
         else:
-            frame = tk.Frame(self, padx=12, pady=12)
+            frame = tk.Frame(self, padx=12, pady=12, bg=UI_THEME["surface"])
             frame.pack(fill="both", expand=True)
 
-            tk.Label(frame, text="Relatório de Talões para CSV", font=("Arial", 12, "bold")).grid(
+            tk.Label(
+                frame,
+                text="Relatório de Talões para CSV",
+                font=("Segoe UI", 12, "bold"),
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["text"],
+            ).grid(
                 row=0, column=0, columnspan=2, sticky="w", pady=(0, 10)
             )
-            tk.Label(frame, text="Data início").grid(row=1, column=0, sticky="w", pady=4)
-            self.data_inicio_entry = tk.Entry(frame, width=24)
+            tk.Label(frame, text="Data início", bg=UI_THEME["surface"], fg=UI_THEME["muted"]).grid(row=1, column=0, sticky="w", pady=4)
+            self.data_inicio_entry = tk.Entry(
+                frame,
+                width=24,
+                bg=UI_THEME["surface_alt"],
+                fg=UI_THEME["text"],
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=UI_THEME["border"],
+                insertbackground=UI_THEME["text"],
+            )
             self.data_inicio_entry.grid(row=1, column=1, sticky="w", pady=4)
 
-            tk.Label(frame, text="Data fim").grid(row=2, column=0, sticky="w", pady=4)
-            self.data_fim_entry = tk.Entry(frame, width=24)
+            tk.Label(frame, text="Data fim", bg=UI_THEME["surface"], fg=UI_THEME["muted"]).grid(row=2, column=0, sticky="w", pady=4)
+            self.data_fim_entry = tk.Entry(
+                frame,
+                width=24,
+                bg=UI_THEME["surface_alt"],
+                fg=UI_THEME["text"],
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=UI_THEME["border"],
+                insertbackground=UI_THEME["text"],
+            )
             self.data_fim_entry.grid(row=2, column=1, sticky="w", pady=4)
 
-            tk.Button(frame, text="Gerar CSV", command=self.gerar_csv, bg="#F57C00", fg="white", font=BUTTON_FONT_BOLD).grid(
-                row=3, column=0, sticky="w", pady=(14, 0)
-            )
-            tk.Button(frame, text="Cancelar", command=self.destroy, font=BUTTON_FONT_BOLD).grid(
-                row=3, column=1, sticky="w", pady=(14, 0)
-            )
+            actions = tk.Frame(frame, bg=UI_THEME["surface"])
+            actions.grid(row=3, column=0, columnspan=2, sticky="w", pady=(14, 0))
+            _build_button(actions, "Gerar CSV", self.gerar_csv, "warning").pack(side="left")
+            _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self._bind_date_placeholder(self.data_inicio_entry, "inicio")
         self._bind_date_placeholder(self.data_fim_entry, "fim")
@@ -453,7 +560,7 @@ class RelatorioPeriodoWindow(tk.Toplevel):
     def _set_date_placeholder(self, widget, key):
         widget.delete(0, tk.END)
         widget.insert(0, "dd/mm/aaaa")
-        self._set_entry_text_color(widget, "#94A3B8")
+        self._set_entry_text_color(widget, UI_THEME["placeholder"])
         self.date_placeholder_active[key] = True
 
     def _on_date_focus_in(self, widget, key):
@@ -519,13 +626,21 @@ class BackupAnoWindow(tk.Toplevel):
         super().__init__(parent)
         self.repo = repo
         self.title("Backup por Ano")
-        self.geometry("440x180")
+        self.geometry("300x130")
         self.resizable(False, False)
         self.ano_var = tk.StringVar(value=str(datetime.now().year - 1))
+        self.use_ctk = ctk is not None
 
-        if ctk is not None:
-            self.configure(fg_color="#F3F6FC")
-            container = ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=12, border_width=1, border_color="#D5DEEA")
+        _apply_toplevel_theme(self)
+
+        if self.use_ctk:
+            container = ctk.CTkFrame(
+                self,
+                fg_color=UI_THEME["surface"],
+                corner_radius=12,
+                border_width=1,
+                border_color=UI_THEME["border"],
+            )
             container.pack(fill="both", expand=True, padx=14, pady=14)
 
             ctk.CTkLabel(
@@ -545,7 +660,7 @@ class BackupAnoWindow(tk.Toplevel):
                 width=120,
                 fg_color=UI_THEME["surface_alt"],
                 border_width=1,
-                border_color="#D5DEEA",
+                border_color=UI_THEME["border"],
             ).grid(row=1, column=1, sticky="w", padx=14, pady=(0, 6))
 
             actions = ctk.CTkFrame(container, fg_color="transparent")
@@ -554,39 +669,41 @@ class BackupAnoWindow(tk.Toplevel):
                 actions,
                 text="Gerar Backup SQL",
                 command=self.gerar_backup,
-                fg_color="#F57C00",
-                hover_color="#E06F00",
-                text_color="#FFFFFF",
+                fg_color=UI_THEME["warning"],
+                hover_color=UI_THEME["warning_hover"],
+                text_color=UI_THEME["white"],
                 font=BUTTON_FONT_BOLD,
                 width=160,
             ).pack(side="left")
-            ctk.CTkButton(
-                actions,
-                text="Cancelar",
-                command=self.destroy,
-                fg_color="#E2E8F0",
-                hover_color="#CBD5E1",
-                text_color=UI_THEME["text"],
-                font=BUTTON_FONT_BOLD,
-                width=120,
-            ).pack(side="left", padx=(8, 0))
+            _build_button(actions, "Cancelar", self.destroy, "neutral", use_ctk=True, width=120).pack(side="left", padx=(8, 0))
         else:
-            frame = tk.Frame(self, padx=12, pady=12)
+            frame = tk.Frame(self, padx=12, pady=12, bg=UI_THEME["surface"])
             frame.pack(fill="both", expand=True)
-            tk.Label(frame, text="Backup dos Talões", font=("Arial", 12, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 8))
-            tk.Label(frame, text="Ano de referência").grid(row=1, column=0, sticky="w", pady=(0, 6))
-            tk.Entry(frame, textvariable=self.ano_var, width=8).grid(row=1, column=1, sticky="w", pady=(0, 6))
-            tk.Button(
+            tk.Label(
                 frame,
-                text="Gerar Backup SQL",
-                command=self.gerar_backup,
-                bg="#F57C00",
-                fg="white",
-                font=BUTTON_FONT_BOLD,
-            ).grid(row=2, column=0, sticky="w", pady=(6, 0))
-            tk.Button(frame, text="Cancelar", command=self.destroy, font=BUTTON_FONT_BOLD).grid(
-                row=2, column=1, sticky="w", padx=(8, 0), pady=(6, 0)
+                text="Backup dos Talões",
+                font=("Segoe UI", 12, "bold"),
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["text"],
+            ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+            tk.Label(frame, text="Ano de referência", bg=UI_THEME["surface"], fg=UI_THEME["muted"]).grid(
+                row=1, column=0, sticky="w", pady=(0, 6)
             )
+            tk.Entry(
+                frame,
+                textvariable=self.ano_var,
+                width=8,
+                bg=UI_THEME["surface_alt"],
+                fg=UI_THEME["text"],
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=UI_THEME["border"],
+                insertbackground=UI_THEME["text"],
+            ).grid(row=1, column=1, sticky="w", pady=(0, 6))
+            actions = tk.Frame(frame, bg=UI_THEME["surface"])
+            actions.grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+            _build_button(actions, "Gerar Backup SQL", self.gerar_backup, "warning").pack(side="left")
+            _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self.transient(parent)
         self.grab_set()
@@ -722,7 +839,7 @@ class AFISDashboard:
         style.configure("AFIS.TLabelframe.Label", background=UI_THEME["surface"], foreground=UI_THEME["muted"], font=("Segoe UI", 10, "bold"))
         style.configure("AFIS.Treeview", background=UI_THEME["surface"], foreground=UI_THEME["text"], fieldbackground=UI_THEME["surface"], rowheight=28)
         style.configure("AFIS.Treeview.Heading", background=UI_THEME["surface_alt"], foreground=UI_THEME["text"], font=("Segoe UI", 9, "bold"))
-        style.map("AFIS.Treeview.Heading", background=[("active", "#DFE7F2")])
+        style.map("AFIS.Treeview.Heading", background=[("active", UI_THEME["surface_hover"])])
         style.configure("AFIS.TCombobox", padding=4)
         if ctk is not None and isinstance(self.root, ctk.CTk):
             self.root.configure(fg_color=UI_THEME["bg"])
@@ -730,42 +847,7 @@ class AFISDashboard:
             self.root.configure(bg=UI_THEME["bg"])
 
     def _build_button(self, parent, text, command, variant="neutral"):
-        if ctk is not None:
-            cfg = {
-                "primary": (UI_THEME["primary"], UI_THEME["primary_hover"], "#FFFFFF"),
-                "success": (UI_THEME["success"], UI_THEME["success_hover"], "#FFFFFF"),
-                "warning": ("#F57C00", "#E06F00", "#FFFFFF"),
-                "neutral": ("#E2E8F0", "#CBD5E1", UI_THEME["text"]),
-            }
-            fg, hover, text_color = cfg.get(variant, cfg["neutral"])
-            return ctk.CTkButton(
-                parent,
-                text=text,
-                command=command,
-                fg_color=fg,
-                hover_color=hover,
-                text_color=text_color,
-                font=BUTTON_FONT_BOLD,
-                corner_radius=8,
-                height=34,
-            )
-        color_map = {
-            "primary": (UI_THEME["primary"], "#FFFFFF"),
-            "success": (UI_THEME["success"], "#FFFFFF"),
-            "warning": ("#F57C00", "#FFFFFF"),
-            "neutral": ("#E2E8F0", UI_THEME["text"]),
-        }
-        bg, fg = color_map.get(variant, color_map["neutral"])
-        return tk.Button(
-            parent,
-            text=text,
-            command=command,
-            bg=bg,
-            fg=fg,
-            font=BUTTON_FONT_BOLD,
-            relief="flat",
-            activebackground=bg,
-        )
+        return _build_button(parent, text, command, variant=variant, use_ctk=ctk is not None)
 
     def _build_layout(self):
         titulo = tk.Label(
@@ -773,11 +855,11 @@ class AFISDashboard:
             text="Registro Digital de Talões AFIS",
             font=("Segoe UI", 20, "bold"),
             bg=UI_THEME["bg"],
-            fg="#FFFFFF",
+            fg=UI_THEME["white"],
         )
         titulo.pack(pady=(14, 10))
 
-        form = ttk.LabelFrame(self.root, text="Cadastro de Talão", style="AFIS.TLabelframe", padding=12)
+        form = ttk.LabelFrame(self.root, text="Abertura de Talão", style="AFIS.TLabelframe", padding=12)
         form.pack(fill="x", padx=12, pady=6)
 
         info = tk.Frame(form, bg=UI_THEME["surface"])
@@ -837,7 +919,7 @@ class AFISDashboard:
                     fg=UI_THEME["text"],
                     relief="flat",
                     highlightthickness=1,
-                    highlightbackground="#D5DEEA",
+                    highlightbackground=UI_THEME["border"],
                     insertbackground=UI_THEME["text"],
                 )
             else:
@@ -848,7 +930,7 @@ class AFISDashboard:
                     fg=UI_THEME["text"],
                     relief="flat",
                     highlightthickness=1,
-                    highlightbackground="#D5DEEA",
+                    highlightbackground=UI_THEME["border"],
                     insertbackground=UI_THEME["text"],
                 )
 
@@ -894,7 +976,7 @@ class AFISDashboard:
 
         list_frame = ttk.LabelFrame(self.root, text="Talões visíveis", style="AFIS.TLabelframe", padding=12)
         list_frame.pack(fill="both", expand=True, padx=12, pady=8)
-
+        
         cols = ("talao", "boletim", "delegacia", "natureza", "status")
         self.tree = ttk.Treeview(list_frame, columns=cols, show="headings", height=15, style="AFIS.Treeview")
         self.tree.heading("talao", text="Talão")
@@ -909,9 +991,21 @@ class AFISDashboard:
         self.tree.column("natureza", width=240)
         self.tree.column("status", width=120, anchor="center")
 
-        self.tree.tag_configure(STATUS_MONITORADO, background="#FFF9DB", foreground="#6B5600")
-        self.tree.tag_configure(STATUS_FINALIZADO, background="#EAF7EE", foreground="#1E5E36")
-        self.tree.tag_configure(STATUS_CANCELADO, background="#FDECEC", foreground="#7F1D1D")
+        self.tree.tag_configure(
+            STATUS_MONITORADO,
+            background=UI_THEME["status_monitorado_bg"],
+            foreground=UI_THEME["status_monitorado_fg"],
+        )
+        self.tree.tag_configure(
+            STATUS_FINALIZADO,
+            background=UI_THEME["status_finalizado_bg"],
+            foreground=UI_THEME["status_finalizado_fg"],
+        )
+        self.tree.tag_configure(
+            STATUS_CANCELADO,
+            background=UI_THEME["status_cancelado_bg"],
+            foreground=UI_THEME["status_cancelado_fg"],
+        )
 
         self.tree.pack(fill="both", expand=True)
 
@@ -1006,7 +1100,7 @@ class AFISDashboard:
     def _set_data_bo_placeholder(self, widget):
         widget.delete(0, tk.END)
         widget.insert(0, "dd/mm/aaaa")
-        widget.configure(fg="#94A3B8")
+        widget.configure(fg=UI_THEME["placeholder"])
         self.data_bo_placeholder_active = True
 
     def _on_data_bo_focus_in(self, widget):
