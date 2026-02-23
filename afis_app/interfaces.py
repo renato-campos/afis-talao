@@ -37,8 +37,16 @@ class TalaoRepository(Protocol):
         """Lista monitoramentos com alerta vencido."""
         ...
 
+    def get_monitoring_interval(self, talao_id: int) -> int | None:
+        """Retorna o intervalo de monitoramento do talao, quando existir."""
+        ...
+
     def list_taloes_by_period(self, data_inicio: date, data_fim: date) -> tuple[list[str], list[Any]]:
         """Retorna colunas e linhas de taloes dentro de um periodo."""
+        ...
+
+    def search_taloes(self, filters: dict[str, Any]) -> tuple[list[str], list[Any]]:
+        """Pesquisa taloes aplicando filtros combinados por E."""
         ...
 
     def list_taloes_by_year(self, ano: int) -> tuple[list[str], list[Any]]:

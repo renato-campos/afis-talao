@@ -1,10 +1,14 @@
 import tkinter as tk
 import csv
+import html
 import logging
+import os
+import re
 import sys
 import webbrowser
 from datetime import date, datetime, time
 from pathlib import Path
+from tempfile import gettempdir
 from tkinter import filedialog, messagebox, ttk
 
 try:
@@ -46,6 +50,8 @@ UI_THEME = {
     "success_hover": "#18703E",
     "warning": "#F57C00",
     "warning_hover": "#E06F00",
+    "gold": "#C7921A",
+    "gold_hover": "#A87912",
     "neutral": "#E2E8F0",
     "neutral_hover": "#CBD5E1",
     "border": "#D5DEEA",
@@ -64,6 +70,7 @@ BUTTON_FONT_BOLD = ("Segoe UI", 11, "bold")
 WATERMARK_MAX_WIDTH = 2560
 WATERMARK_MAX_HEIGHT = 1440
 HELP_ICON_SIZE_PX = 24
+WHATSAPP_ICON_SIZE_PX = 56
 
 ALERT_INTERVAL_OPTIONS = [
     ("1 min", 1),
@@ -111,6 +118,7 @@ def _build_button(parent, text, command, variant="neutral", use_ctk=False, width
         "primary": (UI_THEME["primary"], UI_THEME["primary_hover"], UI_THEME["white"]),
         "success": (UI_THEME["success"], UI_THEME["success_hover"], UI_THEME["white"]),
         "warning": (UI_THEME["warning"], UI_THEME["warning_hover"], UI_THEME["white"]),
+        "gold": (UI_THEME["gold"], UI_THEME["gold_hover"], UI_THEME["white"]),
         "danger": (UI_THEME["danger"], UI_THEME["danger_hover"], UI_THEME["white"]),
         "neutral": (UI_THEME["neutral"], UI_THEME["neutral_hover"], UI_THEME["text"]),
     }
@@ -986,6 +994,231 @@ class BackupAnoWindow(tk.Toplevel):
         self.destroy()
 
 
+class BuscaTaloesWindow(tk.Toplevel):
+    """Janela modal para pesquisa de taloes com exportacao de resultado em HTML."""
+
+    def __init__(self, parent, repo: TalaoRepository):
+        super().__init__(parent)
+        self.repo = repo
+        self.title("Busca de Talões")
+        self.geometry("540x250")
+        self.minsize(540, 250)
+        self.resizable(True, True)
+
+        _apply_toplevel_theme(self)
+
+        frame = tk.Frame(self, padx=12, pady=12, bg=UI_THEME["surface"])
+        frame.pack(fill="both", expand=True)
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
+
+        tk.Label(
+            frame,
+            text="Pesquisa de Talões",
+            font=("Segoe UI", 13, "bold"),
+            bg=UI_THEME["surface"],
+            fg=UI_THEME["text"],
+        ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+
+        self.vars = {
+            "talao": tk.StringVar(),
+            "ano": tk.StringVar(),
+            "delegacia": tk.StringVar(),
+            "boletim": tk.StringVar(),
+            "data": tk.StringVar(),
+            "equipe": tk.StringVar(),
+            "operador": tk.StringVar(),
+        }
+
+        fields = [
+            ("Talão", "talao"),
+            ("Ano", "ano"),
+            ("Delegacia", "delegacia"),
+            ("Boletim", "boletim"),
+            ("Data (dd/mm/aaaa)", "data"),
+            ("Equipe", "equipe"),
+            ("Operador", "operador"),
+        ]
+
+        row = 1
+        col = 0
+        for label, key in fields:
+            tk.Label(
+                frame,
+                text=label,
+                bg=UI_THEME["surface"],
+                fg=UI_THEME["muted"],
+                font=("Segoe UI", 9),
+            ).grid(row=row, column=col, sticky="w", padx=4, pady=4)
+            entry = tk.Entry(
+                frame,
+                textvariable=self.vars[key],
+                width=26,
+                bg=UI_THEME["surface_alt"],
+                fg=UI_THEME["text"],
+                relief="flat",
+                highlightthickness=1,
+                highlightbackground=UI_THEME["border"],
+                insertbackground=UI_THEME["text"],
+            )
+            entry.grid(row=row, column=col + 1, sticky="ew", padx=4, pady=4)
+
+            if col == 2:
+                col = 0
+                row += 1
+            else:
+                col = 2
+
+        info = tk.Label(
+            frame,
+            text="Preencha um ou mais campos. Quando houver mais de um, a busca usa condição E.",
+            bg=UI_THEME["surface"],
+            fg=UI_THEME["muted"],
+            font=("Segoe UI", 9),
+        )
+        info.grid(row=row + 1, column=0, columnspan=4, sticky="w", padx=4, pady=(8, 6))
+
+        actions = tk.Frame(frame, bg=UI_THEME["surface"])
+        actions.grid(row=row + 2, column=0, columnspan=4, sticky="ew", padx=4, pady=(4, 0))
+        _build_button(actions, "Buscar", self.buscar, "gold").pack(side="left")
+        _build_button(actions, "Limpar", self.limpar_campos, "neutral").pack(side="left", padx=(8, 0))
+        _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
+
+        _center_toplevel_on_parent(self, parent)
+        self.transient(parent)
+        self.grab_set()
+
+    def _parse_filters(self):
+        """Converte filtros de entrada para estrutura de busca."""
+        values = {key: var.get().strip() for key, var in self.vars.items()}
+        if not any(values.values()):
+            raise ValueError("Informe ao menos um campo para busca.")
+
+        filters = {}
+
+        talao_txt = values["talao"]
+        if talao_txt:
+            match = re.fullmatch(r"(\d{1,4})/(\d{4})", talao_txt)
+            if match:
+                filters["talao_num"] = int(match.group(1))
+                filters["ano"] = int(match.group(2))
+            elif talao_txt.isdigit():
+                filters["talao_num"] = int(talao_txt)
+            else:
+                raise ValueError("Talão inválido. Use NNNN/AAAA ou apenas NNNN.")
+
+        ano_txt = values["ano"]
+        if ano_txt:
+            if not re.fullmatch(r"\d{4}", ano_txt):
+                raise ValueError("Ano inválido. Use 4 dígitos (ex.: 2026).")
+            # Quando talão vier como NNNN/AAAA, o ano digitado aqui pode sobrescrever o filtro.
+            filters["ano"] = int(ano_txt)
+
+        data_txt = values["data"]
+        if data_txt:
+            parsed = None
+            for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+                try:
+                    parsed = datetime.strptime(data_txt, fmt).date()
+                    break
+                except ValueError:
+                    continue
+            if parsed is None:
+                raise ValueError("Data inválida. Use DD/MM/AAAA.")
+            filters["data_solic"] = parsed
+
+        for key in ("delegacia", "boletim", "equipe", "operador"):
+            if values[key]:
+                filters[key] = values[key]
+
+        return filters
+
+    def _format_html_value(self, value):
+        """Formata valores para exibicao no HTML de resultado."""
+        if value is None:
+            return ""
+        if isinstance(value, datetime):
+            return value.strftime("%d/%m/%Y %H:%M")
+        if isinstance(value, date):
+            return value.strftime("%d/%m/%Y")
+        if isinstance(value, time):
+            return value.strftime("%H:%M:%S")
+        return str(value)
+
+    def _build_result_html(self, columns, rows):
+        """Monta documento HTML com resultados da pesquisa."""
+        header_cells = "".join(f"<th>{html.escape(col)}</th>" for col in columns)
+        body_lines = []
+        for row in rows:
+            cells = "".join(
+                f"<td>{html.escape(self._format_html_value(value))}</td>"
+                for value in row
+            )
+            body_lines.append(f"<tr>{cells}</tr>")
+
+        table_html = "\n".join(body_lines)
+        return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Resultado da Busca de Talões</title>
+  <style>
+    body {{ font-family: Segoe UI, Arial, sans-serif; background: #f5f7fb; color: #0f172a; margin: 16px; }}
+    h1 {{ font-size: 20px; margin: 0 0 12px; }}
+    .meta {{ margin-bottom: 12px; color: #334155; }}
+    table {{ border-collapse: collapse; width: 100%; background: #ffffff; }}
+    th, td {{ border: 1px solid #d5deea; padding: 8px; text-align: left; vertical-align: top; }}
+    th {{ background: #eef3fa; position: sticky; top: 0; }}
+    tr:nth-child(even) td {{ background: #fbfdff; }}
+  </style>
+</head>
+<body>
+  <h1>Resultado da Busca de Talões</h1>
+  <div class="meta">Registros encontrados: {len(rows)}</div>
+  <table>
+    <thead><tr>{header_cells}</tr></thead>
+    <tbody>
+{table_html}
+    </tbody>
+  </table>
+</body>
+</html>"""
+
+    def buscar(self):
+        """Executa pesquisa por filtros e abre resultado em arquivo HTML."""
+        try:
+            filters = self._parse_filters()
+        except ValueError as exc:
+            messagebox.showwarning("Validação", str(exc))
+            return
+
+        try:
+            columns, rows = self.repo.search_taloes(filters)
+        except Exception:
+            logger.exception("Falha ao buscar taloes com filtros")
+            messagebox.showerror("Erro", "Falha ao pesquisar no banco de dados.")
+            return
+
+        if not rows:
+            messagebox.showinfo("Busca", "Nenhum registro encontrado para os filtros informados.")
+            return
+
+        html_content = self._build_result_html(columns, rows)
+        file_name = f"busca_taloes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        file_path = Path(gettempdir()) / file_name
+        try:
+            file_path.write_text(html_content, encoding="utf-8")
+            webbrowser.open(file_path.as_uri())
+        except Exception:
+            logger.exception("Falha ao gerar/abrir HTML de resultado da busca")
+            messagebox.showerror("Erro", "Falha ao gerar arquivo HTML com resultado da busca.")
+
+    def limpar_campos(self):
+        """Limpa todos os campos de filtro da janela de busca."""
+        for var in self.vars.values():
+            var.set("")
+
+
 class AFISDashboard:
     """Tela principal do sistema AFIS com operacoes de cadastro e monitoramento."""
 
@@ -1009,6 +1242,7 @@ class AFISDashboard:
         self.watermark_image = None
         self.watermark_label = None
         self.help_icon_image = None
+        self.whatsapp_icon_image = None
         self.data_bo_placeholder_active = False
         self.proximo_talao_var = tk.StringVar(value="-")
         self.alerta_var = tk.StringVar(value=DEFAULT_ALERT_INTERVAL_LABEL)
@@ -1088,20 +1322,39 @@ class AFISDashboard:
 
         info = tk.Frame(form, bg=UI_THEME["surface"])
         info.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 6))
+        info_left = tk.Frame(info, bg=UI_THEME["surface"])
+        info_left.pack(side="left")
+        info_right = tk.Frame(info, bg=UI_THEME["surface"])
+        info_right.pack(side="right")
         tk.Label(
-            info,
+            info_left,
             text="Próximo Talão (ano atual):",
             font=("Segoe UI", 10, "bold"),
             bg=UI_THEME["surface"],
             fg=UI_THEME["muted"],
         ).pack(side="left")
         tk.Label(
-            info,
+            info_left,
             textvariable=self.proximo_talao_var,
             fg=UI_THEME["primary"],
             bg=UI_THEME["surface"],
             font=("Segoe UI", 10, "bold"),
         ).pack(side="left", padx=6)
+        tk.Label(
+            info_right,
+            text="Alerta (min)",
+            bg=UI_THEME["surface"],
+            fg=UI_THEME["muted"],
+            font=("Segoe UI", 9),
+        ).pack(side="left", padx=(0, 6))
+        ttk.Combobox(
+            info_right,
+            textvariable=self.alerta_var,
+            state="readonly",
+            values=list(self.intervalo_map.keys()),
+            style="AFIS.TCombobox",
+            width=18,
+        ).pack(side="left")
 
         layout_fields = [
             "delegacia",
@@ -1170,30 +1423,45 @@ class AFISDashboard:
                 col = 2
 
         row += 1
-        tk.Label(
-            form,
-            text="Alerta (min)",
-            bg=UI_THEME["surface"],
-            fg=UI_THEME["muted"],
-            font=("Segoe UI", 9),
-        ).grid(row=row, column=0, sticky="w", padx=4, pady=8)
-        combo_alerta = ttk.Combobox(
-            form,
-            textvariable=self.alerta_var,
-            state="readonly",
-            values=list(self.intervalo_map.keys()),
-            style="AFIS.TCombobox",
-        )
-        combo_alerta.grid(row=row, column=1, sticky="w", padx=4, pady=8)
 
         botoes = tk.Frame(form, bg=UI_THEME["surface"])
-        botoes.grid(row=row, column=2, columnspan=2, sticky="ew", padx=4, pady=8)
-        self._build_button(botoes, "Salvar", self.criar_talao, "success").pack(side="left", padx=4)
-        self._build_button(botoes, "Editar", self.editar_selecionado, "primary").pack(side="left", padx=4)
-        self._build_button(botoes, "Atualizar", self.refresh_tree, "neutral").pack(side="left", padx=4)
-        self._build_button(botoes, "Limpar", self._set_defaults, "neutral").pack(side="left", padx=4)
-        self._build_button(botoes, "Relatórios", self.abrir_relatorios, "warning").pack(side="left", padx=4)
-        self._build_button(botoes, "Backup", self.abrir_backup, "danger").pack(side="left", padx=4)
+        botoes.grid(row=row, column=0, columnspan=4, sticky="ew", padx=4, pady=8)
+        # Distribui os botões em uma única linha com colunas de largura uniforme.
+        self._build_button(botoes, "Salvar", self.criar_talao, "success").grid(row=0, column=0, padx=3, sticky="ew")
+        self._build_button(botoes, "Editar", self.editar_selecionado, "primary").grid(row=0, column=1, padx=3, sticky="ew")
+        self._build_button(botoes, "Atualizar", self.refresh_tree, "neutral").grid(row=0, column=2, padx=3, sticky="ew")
+        self._build_button(botoes, "Limpar", self._set_defaults, "neutral").grid(row=0, column=3, padx=3, sticky="ew")
+        self._build_button(botoes, "Busca", self.abrir_busca, "gold").grid(row=0, column=4, padx=3, sticky="ew")
+        self._build_button(botoes, "Relatórios", self.abrir_relatorios, "warning").grid(row=0, column=5, padx=3, sticky="ew")
+        self._build_button(botoes, "Backup", self.abrir_backup, "danger").grid(row=0, column=6, padx=3, sticky="ew")
+        self.whatsapp_icon_image = self._load_whatsapp_icon()
+        if self.whatsapp_icon_image is not None:
+            whatsapp_cell = tk.Frame(botoes, bg=UI_THEME["surface"])
+            whatsapp_cell.grid(row=0, column=7, padx=3, sticky="ew")
+            tk.Button(
+                whatsapp_cell,
+                image=self.whatsapp_icon_image,
+                command=self.gerar_mensagem_whatsapp_selecionado,
+                bg=UI_THEME["surface"],
+                activebackground=UI_THEME["surface_hover"],
+                relief="flat",
+                borderwidth=1,
+                highlightthickness=1,
+                highlightbackground=UI_THEME["border"],
+                cursor="hand2",
+                padx=6,
+                pady=4,
+            ).pack()
+        else:
+            self._build_button(
+                botoes,
+                "WhatsApp",
+                self.gerar_mensagem_whatsapp_selecionado,
+                "neutral",
+            ).grid(row=0, column=7, padx=3, sticky="ew")
+
+        for col_idx in range(8):
+            botoes.grid_columnconfigure(col_idx, weight=1, uniform="acoes")
 
         for col_idx in (1, 3):
             form.grid_columnconfigure(col_idx, weight=1)
@@ -1318,6 +1586,26 @@ class AFISDashboard:
             logger.warning("Falha ao carregar icone de ajuda em %s", icon_path, exc_info=True)
             return None
 
+    def _load_whatsapp_icon(self):
+        """Carrega icone do botao de mensagem WhatsApp."""
+        icon_path = self._resolve_asset_path("assets/ZAP.png")
+        if not icon_path or not icon_path.exists():
+            return None
+        try:
+            image = tk.PhotoImage(file=str(icon_path))
+            width = image.width()
+            height = image.height()
+            if width > 0 and height > 0:
+                width_ratio = (width + WHATSAPP_ICON_SIZE_PX - 1) // WHATSAPP_ICON_SIZE_PX
+                height_ratio = (height + WHATSAPP_ICON_SIZE_PX - 1) // WHATSAPP_ICON_SIZE_PX
+                scale = max(1, width_ratio, height_ratio)
+                if scale > 1:
+                    image = image.subsample(scale, scale)
+            return image
+        except Exception:
+            logger.warning("Falha ao carregar icone WhatsApp em %s", icon_path, exc_info=True)
+            return None
+
     def _setup_watermark(self):
         """Posiciona marca d'agua no fundo da janela principal."""
         self.watermark_image = self._load_watermark_image()
@@ -1402,6 +1690,39 @@ class AFISDashboard:
         except Exception:
             self.proximo_talao_var.set("indisponível")
 
+    def _format_message_value(self, value):
+        """Normaliza valor para exibicao no template de mensagem."""
+        if value is None:
+            return "-"
+        text = str(value).strip()
+        return text if text else "-"
+
+    def _build_whatsapp_message(self, ano, talao, data):
+        """Monta mensagem padrao para compartilhamento no WhatsApp."""
+        lines = [
+            "*NOVO TALÃO*\n",
+            f"*TALÃO:{format_talao(ano, talao)}*",
+            f"*DELEGACIA:* {self._format_message_value(data.get('delegacia'))}",
+            f"*AUTORIDADE:* {self._format_message_value(data.get('autoridade'))}",
+            f"*ENDERECO:* {self._format_message_value(data.get('endereco'))}",
+            f"*BOLETIM:* {self._format_message_value(data.get('boletim'))}",
+            f"*NATUREZA:* {self._format_message_value(data.get('natureza'))}",
+            f"*OBSERVACAO:* {self._format_message_value(data.get('observacao'))}",
+        ]
+        return "\n".join(lines)
+
+    def _open_message_text(self, titulo, conteudo):
+        """Gera arquivo de texto temporario e abre no app padrao para copia."""
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"{titulo}_{stamp}.txt"
+        file_path = Path(gettempdir()) / file_name
+        file_path.write_text(conteudo, encoding="utf-8")
+
+        if sys.platform.startswith("win"):
+            os.startfile(str(file_path))  # type: ignore[attr-defined]
+            return
+        webbrowser.open(file_path.as_uri())
+
     def criar_talao(self):
         """Processa criacao de novo talao a partir do formulario principal."""
         data = self._collect_form_data()
@@ -1445,7 +1766,9 @@ class AFISDashboard:
             return
 
         talao_id = int(item_id)
-        intervalo = self.intervalo_map.get(self.alerta_var.get(), DEFAULT_ALERT_INTERVAL_MIN)
+        intervalo = self.repo.get_monitoring_interval(talao_id)
+        if intervalo is None:
+            intervalo = DEFAULT_ALERT_INTERVAL_MIN
         TalaoEditor(
             self.root,
             self.repo,
@@ -1460,9 +1783,32 @@ class AFISDashboard:
         """Abre janela modal de relatorios por periodo."""
         RelatorioPeriodoWindow(self.root, self.repo)
 
+    def abrir_busca(self):
+        """Abre janela modal de busca de taloes por filtros."""
+        BuscaTaloesWindow(self.root, self.repo)
+
     def abrir_backup(self):
         """Abre janela modal de backup anual."""
         BackupAnoWindow(self.root, self.repo)
+
+    def gerar_mensagem_whatsapp_selecionado(self):
+        """Gera template de mensagem WhatsApp para o talao selecionado."""
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("Info", "Selecione um talão na lista.")
+            return
+
+        talao_id = int(selected[0])
+        try:
+            record = self.repo.get_talao(talao_id)
+            if not record:
+                messagebox.showwarning("WhatsApp", "Talão não encontrado para gerar mensagem.")
+                return
+            mensagem = self._build_whatsapp_message(record.get("ano"), record.get("talao"), record)
+            self._open_message_text("mensagem_whatsapp_talao", mensagem)
+        except Exception:
+            logger.exception("Falha ao gerar mensagem WhatsApp do talão %s", talao_id)
+            messagebox.showerror("Erro", "Falha ao gerar mensagem para WhatsApp.")
 
     def refresh_tree(self, silent=False):
         """Recarrega a grade principal com os taloes visiveis."""

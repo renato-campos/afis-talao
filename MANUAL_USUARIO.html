@@ -374,6 +374,8 @@ code {
 <li>acompanhar taloes em monitoramento;</li>
 <li>receber alertas periodicos;</li>
 <li>editar taloes em andamento;</li>
+<li>pesquisar taloes com filtros combinados;</li>
+<li>gerar mensagem padrao para envio no WhatsApp;</li>
 <li>gerar relatorios por periodo;</li>
 <li>gerar backup anual.</li>
 </ul>
@@ -385,6 +387,7 @@ code {
 <li>Acompanhe a lista de taloes na parte inferior da tela.</li>
 <li>Quando houver atualizacao, selecione o talao e clique em <code>Editar</code>.</li>
 <li>Responda os alertas quando aparecerem.</li>
+<li>Use <code>Busca</code> quando precisar localizar registros especificos.</li>
 <li>Gere relatorios quando precisar encaminhar resultados.</li>
 <li>Gere backup periodico para seguranca dos dados.</li>
 </ol>
@@ -407,7 +410,7 @@ code {
 <p>Tambem aparecem:</p>
 <ul>
 <li><code>Proximo Talao</code> do ano atual;</li>
-<li><code>Alerta (min)</code> para definir o intervalo do monitoramento.</li>
+<li><code>Alerta (min)</code> no topo, ao lado direito, para definir o intervalo do monitoramento.</li>
 </ul>
 <h3 id="32-botoes-principais">3.2 Botoes principais</h3>
 <ul>
@@ -415,37 +418,21 @@ code {
 <li><code>Editar</code>: altera um talao selecionado na lista.</li>
 <li><code>Atualizar</code>: recarrega a lista de taloes visiveis.</li>
 <li><code>Limpar</code>: limpa o formulario para novo preenchimento.</li>
+<li><code>Busca</code>: abre a janela de pesquisa no banco por filtros.</li>
 <li><code>Relatorios</code>: abre a janela de exportacao por periodo.</li>
 <li><code>Backup</code>: abre a janela de backup por ano.</li>
+<li><code>Zap</code> (icone): gera uma mensagem pronta do talao selecionado para copiar e colar no WhatsApp.</li>
 </ul>
 <h3 id="33-lista-de-taloes-visiveis">3.3 Lista de taloes visiveis</h3>
-<p>A lista mostra:</p>
-<ul>
-<li>Talao</li>
-<li>Boletim</li>
-<li>Delegacia</li>
-<li>Natureza</li>
-<li>Status</li>
-</ul>
-<p>Cores de apoio:</p>
-<ul>
-<li>monitorado: amarelo</li>
-<li>finalizado: verde</li>
-<li>cancelado: vermelho</li>
-</ul>
+<p>A lista mostra: Talao, Boletim, Delegacia, Natureza e Status.</p>
+<p>Cores de apoio: monitorado (amarelo), finalizado (verde), cancelado (vermelho).</p>
 <h2 id="4-como-abrir-um-novo-talao">4. Como abrir um novo talao</h2>
 <ol>
 <li>Preencha os campos do formulario.</li>
-<li>Escolha o intervalo em <code>Alerta (min)</code>.</li>
+<li>Escolha o intervalo em <code>Alerta (min)</code> no topo da janela.</li>
 <li>Clique em <code>Salvar</code>.</li>
 </ol>
-<p>O sistema preenche automaticamente:</p>
-<ul>
-<li>data da solicitacao;</li>
-<li>hora da solicitacao;</li>
-<li>status inicial como <code>MONITORADO</code>;</li>
-<li>numero sequencial do talao no ano atual.</li>
-</ul>
+<p>O sistema preenche automaticamente: data da solicitacao, hora da solicitacao, status inicial <code>MONITORADO</code> e numero sequencial do talao no ano atual.</p>
 <h2 id="5-como-editar-um-talao">5. Como editar um talao</h2>
 <ol>
 <li>Selecione um talao na lista.</li>
@@ -453,11 +440,7 @@ code {
 <li>Ajuste os campos necessarios.</li>
 <li>Clique em <code>Salvar</code>.</li>
 </ol>
-<p>Importante:</p>
-<ul>
-<li>taloes <code>FINALIZADO</code> e <code>CANCELADO</code> nao podem ser editados;</li>
-<li>se outro terminal tiver salvo alteracoes antes, o sistema pode avisar conflito.</li>
-</ul>
+<p>Importante: taloes <code>FINALIZADO</code> e <code>CANCELADO</code> nao podem ser editados; se outro terminal tiver salvo alteracoes antes, o sistema pode avisar conflito.</p>
 <h2 id="6-status-do-talao-quando-usar-cada-um">6. Status do talao (quando usar cada um)</h2>
 <ul>
 <li><code>MONITORADO</code>: talao ainda em acompanhamento.</li>
@@ -466,14 +449,15 @@ code {
 </ul>
 <p>Campos obrigatorios por status:</p>
 <ul>
-<li>Monitorado: dados basicos de abertura.</li>
+<li>Monitorado: dados basicos de abertura + boletim.</li>
 <li>Finalizado: dados basicos + boletim + natureza + data BO + vitimas + equipe.</li>
-<li>Cancelado: dados basicos + observacao.</li>
+<li>Cancelado: dados basicos + boletim + observacao.</li>
 </ul>
 <p>Padrao de preenchimento:</p>
 <ul>
 <li>data: <code>dd/mm/aaaa</code></li>
 <li>hora: <code>HH:MM</code></li>
+<li>boletim: <code>AA0001</code> ate <code>ZZ9999</code>, com sufixo opcional <code>-1</code> ate <code>-99</code> (ex.: <code>AB1234</code> ou <code>AB1234-2</code>).</li>
 </ul>
 <h2 id="7-alertas-de-monitoramento-como-responder">7. Alertas de monitoramento (como responder)</h2>
 <p>Quando um talao monitorado atinge o horario de alerta, aparece uma pergunta de confirmacao:</p>
@@ -482,44 +466,52 @@ code {
 <li>Se faltar informacao obrigatoria para finalizar: o talao e aberto para complementar.</li>
 <li>Se responder <code>Nao</code>: o proximo alerta e adiado conforme o intervalo definido.</li>
 </ul>
-<h2 id="8-relatorios-passo-a-passo">8. Relatorios (passo a passo)</h2>
+<h2 id="8-busca-de-taloes-passo-a-passo">8. Busca de taloes (passo a passo)</h2>
+<ol>
+<li>Clique em <code>Busca</code>.</li>
+<li>Preencha um ou mais filtros: Talao, Ano, Delegacia, Boletim, Data, Equipe e Operador.</li>
+<li>Clique em <code>Buscar</code>.</li>
+<li>O resultado abre em um arquivo HTML com todas as informacoes dos registros encontrados.</li>
+</ol>
+<p>Observacoes: quando mais de um campo e informado, a busca usa condicao <code>E</code>; o botao <code>Limpar</code> na janela de busca apaga todos os filtros.</p>
+<h2 id="9-mensagem-para-whatsapp-passo-a-passo">9. Mensagem para WhatsApp (passo a passo)</h2>
+<ol>
+<li>Selecione um talao na lista principal.</li>
+<li>Clique no icone <code>Zap</code>.</li>
+<li>O sistema abre um arquivo <code>.txt</code> com a mensagem pronta.</li>
+<li>Copie e cole no WhatsApp.</li>
+</ol>
+<h2 id="10-relatorios-passo-a-passo">10. Relatorios (passo a passo)</h2>
 <ol>
 <li>Clique em <code>Relatorios</code>.</li>
 <li>Informe <code>Data inicio</code> e <code>Data fim</code>.</li>
-<li>Escolha:
-<ul>
-<li><code>CSV</code> para planilha simples;</li>
-<li><code>Excel</code> para exportar no modelo padrao do setor.</li>
-</ul>
-</li>
+<li>Escolha <code>CSV</code> ou <code>Excel</code>.</li>
 <li>Escolha a pasta e salve o arquivo.</li>
 </ol>
-<p>Observacao:</p>
-<ul>
-<li>o periodo considera a data de solicitacao do talao.</li>
-</ul>
-<h2 id="9-backup-anual-passo-a-passo">9. Backup anual (passo a passo)</h2>
+<p>Observacao: o periodo considera a data de solicitacao do talao.</p>
+<h2 id="11-backup-anual-passo-a-passo">11. Backup anual (passo a passo)</h2>
 <ol>
 <li>Clique em <code>Backup</code>.</li>
 <li>Informe o ano de referencia.</li>
 <li>Clique em <code>Backup SQL</code>.</li>
 <li>Escolha onde salvar.</li>
 </ol>
-<p>O arquivo gerado contem os registros daquele ano para restauracao futura e/ ou auditoria, se necessario.</p>
-<h2 id="10-boas-praticas-de-operacao">10. Boas praticas de operacao</h2>
+<h2 id="12-boas-praticas-de-operacao">12. Boas praticas de operacao</h2>
 <ul>
 <li>Preencha os dados essenciais no momento da abertura.</li>
 <li>Nao deixe alerta acumulado sem resposta.</li>
 <li>Atualize o status de acordo com a situacao real.</li>
+<li>Use a busca para localizar registros por filtro combinado.</li>
 <li>Gere relatorio com frequencia definida pela equipe.</li>
 <li>Gere backup regularmente e guarde copia em local seguro.</li>
 </ul>
-<h2 id="11-duvidas-comuns-solucao-rapida">11. Duvidas comuns (solucao rapida)</h2>
+<h2 id="13-duvidas-comuns-solucao-rapida">13. Duvidas comuns (solucao rapida)</h2>
 <ul>
 <li><strong>Nao abre o sistema</strong>: acione o suporte para validar conexao e configuracao.</li>
-<li><strong>Nao consigo salvar/finalizar</strong>: revise campos obrigatorios e formato de data/hora.</li>
+<li><strong>Nao consigo salvar/finalizar</strong>: revise campos obrigatorios e formato de data/hora/boletim.</li>
 <li><strong>Talao nao aparece na lista</strong>: clique em <code>Atualizar</code>.</li>
 <li><strong>Conflito ao salvar edicao</strong>: recarregue a lista e tente novamente.</li>
+<li><strong>Busca nao retornou dados</strong>: revise filtros e lembre que multiplos campos usam condicao <code>E</code>.</li>
 <li><strong>Excel nao gera</strong>: acione o suporte para validar componentes do ambiente.</li>
 </ul>
 

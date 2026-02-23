@@ -10,6 +10,8 @@ Com ele, voce consegue:
 - acompanhar taloes em monitoramento;
 - receber alertas periodicos;
 - editar taloes em andamento;
+- pesquisar taloes com filtros combinados;
+- gerar mensagem padrao para envio no WhatsApp;
 - gerar relatorios por periodo;
 - gerar backup anual.
 
@@ -46,7 +48,7 @@ Na parte superior da tela voce informa os dados do atendimento:
 Tambem aparecem:
 
 - `Proximo Talao` do ano atual;
-- `Alerta (min)` para definir o intervalo do monitoramento.
+- `Alerta (min)` no topo, ao lado direito, para definir o intervalo do monitoramento.
 
 ### 3.2 Botoes principais
 
@@ -54,8 +56,10 @@ Tambem aparecem:
 - `Editar`: altera um talao selecionado na lista.
 - `Atualizar`: recarrega a lista de taloes visiveis.
 - `Limpar`: limpa o formulario para novo preenchimento.
+- `Busca`: abre a janela de pesquisa no banco por filtros.
 - `Relatorios`: abre a janela de exportacao por periodo.
 - `Backup`: abre a janela de backup por ano.
+- `Zap` (icone): gera uma mensagem pronta do talao selecionado para copiar e colar no WhatsApp.
 
 ### 3.3 Lista de taloes visiveis
 
@@ -76,7 +80,7 @@ Cores de apoio:
 ## 4. Como abrir um novo talao
 
 1. Preencha os campos do formulario.
-2. Escolha o intervalo em `Alerta (min)`.
+2. Escolha o intervalo em `Alerta (min)` no topo da janela.
 3. Clique em `Salvar`.
 
 O sistema preenche automaticamente:
@@ -106,14 +110,15 @@ Importante:
 
 Campos obrigatorios por status:
 
-- Monitorado: dados basicos de abertura.
+- Monitorado: dados basicos de abertura + boletim.
 - Finalizado: dados basicos + boletim + natureza + data BO + vitimas + equipe.
-- Cancelado: dados basicos + observacao.
+- Cancelado: dados basicos + boletim + observacao.
 
 Padrao de preenchimento:
 
 - data: `dd/mm/aaaa`
 - hora: `HH:MM`
+- boletim: `AA0001` ate `ZZ9999`, com sufixo opcional `-1` ate `-99` (ex.: `AB1234` ou `AB1234-2`)
 
 ## 7. Alertas de monitoramento (como responder)
 
@@ -123,7 +128,33 @@ Quando um talao monitorado atinge o horario de alerta, aparece uma pergunta de c
 - Se faltar informacao obrigatoria para finalizar: o talao e aberto para complementar.
 - Se responder `Nao`: o proximo alerta e adiado conforme o intervalo definido.
 
-## 8. Relatorios (passo a passo)
+## 8. Busca de taloes (passo a passo)
+
+1. Clique em `Busca`.
+2. Preencha um ou mais filtros:
+   - Talao (`NNNN` ou `NNNN/AAAA`)
+   - Ano (`AAAA`)
+   - Delegacia
+   - Boletim
+   - Data (`dd/mm/aaaa`)
+   - Equipe
+   - Operador
+3. Clique em `Buscar`.
+4. O resultado abre em um arquivo HTML com todas as informacoes dos registros encontrados.
+
+Observacoes:
+
+- quando mais de um campo e informado, a busca usa condicao `E`;
+- o botao `Limpar` na janela de busca apaga todos os filtros.
+
+## 9. Mensagem para WhatsApp (passo a passo)
+
+1. Selecione um talao na lista principal.
+2. Clique no icone `Zap`.
+3. O sistema abre um arquivo `.txt` com a mensagem pronta.
+4. Copie e cole no WhatsApp.
+
+## 10. Relatorios (passo a passo)
 
 1. Clique em `Relatorios`.
 2. Informe `Data inicio` e `Data fim`.
@@ -136,7 +167,7 @@ Observacao:
 
 - o periodo considera a data de solicitacao do talao.
 
-## 9. Backup anual (passo a passo)
+## 11. Backup anual (passo a passo)
 
 1. Clique em `Backup`.
 2. Informe o ano de referencia.
@@ -145,7 +176,7 @@ Observacao:
 
 O arquivo gerado contem os registros daquele ano para restauracao futura e/ ou auditoria, se necessario.
 
-## 10. Boas praticas de operacao
+## 12. Boas praticas de operacao
 
 - Preencha os dados essenciais no momento da abertura.
 - Nao deixe alerta acumulado sem resposta.
@@ -153,12 +184,13 @@ O arquivo gerado contem os registros daquele ano para restauracao futura e/ ou a
 - Gere relatorio com frequencia definida pela equipe.
 - Gere backup regularmente e guarde copia em local seguro.
 
-## 11. Duvidas comuns (solucao rapida)
+## 13. Duvidas comuns (solucao rapida)
 
 - **Nao abre o sistema**: acione o suporte para validar conexao e configuracao.
-- **Nao consigo salvar/finalizar**: revise campos obrigatorios e formato de data/hora.
+- **Nao consigo salvar/finalizar**: revise campos obrigatorios e formato de data/hora/boletim.
 - **Talao nao aparece na lista**: clique em `Atualizar`.
 - **Conflito ao salvar edicao**: recarregue a lista e tente novamente.
+- **Busca nao retornou dados**: revise filtros e lembre que multiplos campos usam condicao `E`.
 - **Excel nao gera**: acione o suporte para validar componentes do ambiente.
 
 

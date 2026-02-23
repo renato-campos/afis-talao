@@ -19,7 +19,7 @@ class TalaoServiceTests(unittest.TestCase):
             "autoridade": "DELEGADO A",
             "solicitante": "UNIDADE B",
             "endereco": "RUA X, 123",
-            "boletim": "",
+            "boletim": "AB1234",
             "natureza": "",
             "data_bo": "",
             "vitimas": "",
@@ -53,6 +53,28 @@ class TalaoServiceTests(unittest.TestCase):
 
         self.assertIn("Observação", missing)
 
+    def test_prepare_update_talao_rejects_invalid_boletim_format(self):
+        """Valida rejeicao de boletim fora do padrao AA0001..ZZ9999(-1..-99)."""
+        form_data = self._base_form_data()
+        form_data["data_solic"] = "23/02/2026"
+        form_data["hora_solic"] = "14:35"
+        form_data["boletim"] = "A1234"
+
+        with self.assertRaises(ValueError):
+            self.service.prepare_update_talao(form_data)
+
+    def test_prepare_update_talao_accepts_boletim_with_optional_suffix(self):
+        """Valida aceitacao de boletim com sufixo opcional dentro do intervalo permitido."""
+        form_data = self._base_form_data()
+        form_data["data_solic"] = "23/02/2026"
+        form_data["hora_solic"] = "14:35"
+        form_data["boletim"] = "cd0001-99"
+
+        normalized, missing = self.service.prepare_update_talao(form_data)
+
+        self.assertEqual([], missing)
+        self.assertEqual("CD0001-99", normalized["boletim"])
+
     def test_prepare_finalize_from_record_builds_valid_payload(self):
         """Valida preparo de payload para finalizacao a partir de registro bruto."""
         record = {
@@ -60,7 +82,7 @@ class TalaoServiceTests(unittest.TestCase):
             "autoridade": "DELEGADO A",
             "solicitante": "UNIDADE B",
             "endereco": "RUA X, 123",
-            "boletim": "2026-1234",
+            "boletim": "AB1234",
             "natureza": "FURTO",
             "data_bo": date(2026, 2, 22),
             "vitimas": "JOAO",
