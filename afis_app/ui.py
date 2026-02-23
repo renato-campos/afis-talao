@@ -16,19 +16,17 @@ except ImportError:
     load_workbook = None
 
 from .constants import (
-    CANCEL_REQUIRED,
-    CREATE_REQUIRED,
     EDITABLE_FIELDS,
     FIELD_LABELS,
-    FINALIZE_REQUIRED,
     STATUS_CANCELADO,
     STATUS_FINALIZADO,
     STATUS_MONITORADO,
     STATUS_OPCOES,
 )
 from .config import get_env
+from .interfaces import TalaoRepository
 from .repository import ConcurrencyError, DuplicateTalaoError
-from .validators import normalize_and_validate
+from .services import AlertaService, TalaoService
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +77,7 @@ DEFAULT_ALERT_INTERVAL_LABEL = next(
 
 
 def format_talao(ano, numero):
+    """Formata o talao no padrao NNNN/AAAA."""
     try:
         return f"{int(numero):04d}/{int(ano)}"
     except (TypeError, ValueError):
@@ -86,6 +85,7 @@ def format_talao(ano, numero):
 
 
 def _normalize_user_text(value, field_name):
+    """Padroniza texto digitado pelo usuario antes da validacao."""
     if value is None:
         return ""
     text = str(value).strip()
@@ -95,6 +95,7 @@ def _normalize_user_text(value, field_name):
 
 
 def _apply_toplevel_theme(window, bg_key="bg"):
+    """Aplica paleta visual em janelas toplevel Tk/CTk."""
     if ctk is not None and isinstance(window, ctk.CTkToplevel):
         window.configure(fg_color=UI_THEME[bg_key])
     else:
@@ -102,6 +103,7 @@ def _apply_toplevel_theme(window, bg_key="bg"):
 
 
 def _build_button(parent, text, command, variant="neutral", use_ctk=False, width=None):
+    """Cria botao padronizado para Tk e CustomTkinter."""
     cfg = {
         "primary": (UI_THEME["primary"], UI_THEME["primary_hover"], UI_THEME["white"]),
         "success": (UI_THEME["success"], UI_THEME["success_hover"], UI_THEME["white"]),
@@ -137,10 +139,44 @@ def _build_button(parent, text, command, variant="neutral", use_ctk=False, width
     )
 
 
+def _center_toplevel_on_parent(window, parent):
+    """Centraliza uma janela filha em relacao a janela pai."""
+    window.update_idletasks()
+    parent.update_idletasks()
+
+    width = window.winfo_width()
+    height = window.winfo_height()
+    if width <= 1 or height <= 1:
+        width = window.winfo_reqwidth()
+        height = window.winfo_reqheight()
+
+    parent_x = parent.winfo_rootx()
+    parent_y = parent.winfo_rooty()
+    parent_w = parent.winfo_width()
+    parent_h = parent.winfo_height()
+
+    x = parent_x + (parent_w - width) // 2
+    y = parent_y + (parent_h - height) // 2
+    window.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+
 class TalaoEditor(tk.Toplevel):
-    def __init__(self, parent, repo, talao_id, intervalo_min, on_saved):
+    """Janela modal de edicao de talao."""
+
+    def __init__(
+        self,
+        parent,
+        repo: TalaoRepository,
+        talao_service: TalaoService,
+        alerta_service: AlertaService,
+        talao_id,
+        intervalo_min,
+        on_saved,
+    ):
         super().__init__(parent)
         self.repo = repo
+        self.talao_service = talao_service
+        self.alerta_service = alerta_service
         self.talao_id = talao_id
         self.on_saved = on_saved
         self.title("Editar Talão")
@@ -343,10 +379,12 @@ class TalaoEditor(tk.Toplevel):
             _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self.form_parent.columnconfigure(1, weight=1)
+        _center_toplevel_on_parent(self, parent)
         self.transient(parent)
         self.grab_set()
 
     def _collect(self):
+        """Coleta e normaliza os valores atuais do formulario de edicao."""
         data = {}
         for key in EDITABLE_FIELDS:
             widget = self.widgets[key]
@@ -365,49 +403,48 @@ class TalaoEditor(tk.Toplevel):
         return data
 
     def _set_entry_text_color(self, widget, color):
+        """Ajusta cor do texto em Entry Tk/CTk."""
         if ctk is not None and isinstance(widget, ctk.CTkEntry):
             widget.configure(text_color=color)
         else:
             widget.configure(fg=color)
 
     def _bind_data_bo_placeholder(self, widget):
+        """Vincula eventos de placeholder ao campo data BO."""
         widget.bind("<FocusIn>", lambda _e: self._on_data_bo_focus_in(widget))
         widget.bind("<FocusOut>", lambda _e: self._on_data_bo_focus_out(widget))
         widget.bind("<KeyPress>", lambda e: self._on_data_bo_key_press(widget, e))
 
     def _set_data_bo_placeholder(self, widget):
+        """Define texto de placeholder para data BO."""
         widget.delete(0, tk.END)
         widget.insert(0, "dd/mm/aaaa")
         self._set_entry_text_color(widget, UI_THEME["placeholder"])
         self.data_bo_placeholder_active = True
 
     def _on_data_bo_focus_in(self, widget):
+        """Mantem cursor no inicio quando placeholder estiver ativo."""
         if self.data_bo_placeholder_active:
             widget.icursor(0)
 
     def _on_data_bo_focus_out(self, widget):
+        """Reaplica placeholder ao perder foco com campo vazio."""
         if not widget.get().strip():
             self._set_data_bo_placeholder(widget)
 
     def _on_data_bo_key_press(self, widget, event):
+        """Remove placeholder ao iniciar digitacao no campo data BO."""
         if self.data_bo_placeholder_active and (event.char and event.char.isprintable()):
             widget.delete(0, tk.END)
             self._set_entry_text_color(widget, UI_THEME["text"])
             self.data_bo_placeholder_active = False
 
     def save(self):
+        """Valida e persiste alteracoes do talao em edicao."""
         data = self._collect()
-        status = data["status"]
-
-        if status == STATUS_FINALIZADO:
-            required = FINALIZE_REQUIRED
-        elif status == STATUS_CANCELADO:
-            required = CANCEL_REQUIRED
-        else:
-            required = CREATE_REQUIRED
 
         try:
-            normalized, missing = normalize_and_validate(data, required)
+            normalized, missing = self.talao_service.prepare_update_talao(data)
         except ValueError as exc:
             messagebox.showwarning("Validacao", str(exc))
             return
@@ -415,6 +452,23 @@ class TalaoEditor(tk.Toplevel):
         if missing:
             messagebox.showwarning("Validação", "Campos obrigatórios:\n- " + "\n- ".join(missing))
             return
+
+        if normalized.get("status") == STATUS_FINALIZADO:
+            confirmar_envio = messagebox.askyesno(
+                "Confirmação obrigatória",
+                self.alerta_service.build_final_boletim_confirmation_question(),
+                parent=self,
+            )
+            if not confirmar_envio:
+                normalized["status"] = STATUS_MONITORADO
+                status_widget = self.widgets.get("status")
+                if status_widget is not None and hasattr(status_widget, "set"):
+                    status_widget.set(STATUS_MONITORADO)
+                messagebox.showinfo(
+                    "Status mantido",
+                    "O talão permanecerá como MONITORADO porque o boletim finalizado ainda não foi enviado.",
+                    parent=self,
+                )
 
         try:
             self.repo.update_talao(
@@ -435,12 +489,14 @@ class TalaoEditor(tk.Toplevel):
 
 
 class RelatorioPeriodoWindow(tk.Toplevel):
-    def __init__(self, parent, repo):
+    """Janela modal para gerar relatorios por periodo."""
+
+    def __init__(self, parent, repo: TalaoRepository):
         super().__init__(parent)
         self.repo = repo
         self.title("Relatórios por Período")
-        self.geometry("260x180")
-        self.minsize(260, 180)
+        self.geometry("210x180")
+        self.minsize(210, 180)
         self.resizable(True, True)
         self.date_placeholder_active = {"inicio": False, "fim": False}
         self.use_ctk = ctk is not None
@@ -550,10 +606,12 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         self._set_date_placeholder(self.data_inicio_entry, "inicio")
         self._set_date_placeholder(self.data_fim_entry, "fim")
 
+        _center_toplevel_on_parent(self, parent)
         self.transient(parent)
         self.grab_set()
 
     def _parse_periodo(self):
+        """Converte e valida datas de inicio/fim informadas no formulario."""
         data_inicio_txt = self._get_date_value(self.data_inicio_entry, "inicio")
         data_fim_txt = self._get_date_value(self.data_fim_entry, "fim")
         try:
@@ -566,42 +624,50 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         return data_inicio, data_fim
 
     def _set_entry_text_color(self, widget, color):
+        """Ajusta cor do texto em Entry Tk/CTk da janela de relatorio."""
         if ctk is not None and isinstance(widget, ctk.CTkEntry):
             widget.configure(text_color=color)
         else:
             widget.configure(fg=color)
 
     def _bind_date_placeholder(self, widget, key):
+        """Vincula eventos de placeholder aos campos de periodo."""
         widget.bind("<FocusIn>", lambda _e: self._on_date_focus_in(widget, key))
         widget.bind("<FocusOut>", lambda _e: self._on_date_focus_out(widget, key))
         widget.bind("<KeyPress>", lambda e: self._on_date_key_press(widget, key, e))
 
     def _set_date_placeholder(self, widget, key):
+        """Aplica placeholder de data em campo de periodo."""
         widget.delete(0, tk.END)
         widget.insert(0, "dd/mm/aaaa")
         self._set_entry_text_color(widget, UI_THEME["placeholder"])
         self.date_placeholder_active[key] = True
 
     def _on_date_focus_in(self, widget, key):
+        """Mantem cursor no inicio quando placeholder de data estiver ativo."""
         if self.date_placeholder_active[key]:
             widget.icursor(0)
 
     def _on_date_focus_out(self, widget, key):
+        """Reaplica placeholder de data quando campo ficar vazio."""
         if not widget.get().strip():
             self._set_date_placeholder(widget, key)
 
     def _on_date_key_press(self, widget, key, event):
+        """Remove placeholder de data ao iniciar digitacao."""
         if self.date_placeholder_active[key] and (event.char and event.char.isprintable()):
             widget.delete(0, tk.END)
             self._set_entry_text_color(widget, UI_THEME["text"])
             self.date_placeholder_active[key] = False
 
     def _get_date_value(self, widget, key):
+        """Retorna valor real do campo ignorando placeholder ativo."""
         if self.date_placeholder_active[key]:
             return ""
         return widget.get().strip()
 
     def _load_report_rows(self):
+        """Carrega linhas de relatorio para o periodo informado."""
         try:
             data_inicio, data_fim = self._parse_periodo()
         except ValueError as exc:
@@ -617,9 +683,11 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         return data_inicio, data_fim, columns, rows
 
     def _resolve_modelo_path(self):
+        """Retorna caminho absoluto do template XLSX de relatorio."""
         return Path(__file__).resolve().parent.parent / "assets" / "modelo.xlsx"
 
     def _format_excel_date(self, value):
+        """Converte valores de data para formato de exibicao no Excel."""
         if value is None:
             return ""
         if isinstance(value, datetime):
@@ -629,6 +697,7 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         return str(value)
 
     def gerar_csv(self):
+        """Exporta relatorio de periodo para arquivo CSV."""
         loaded = self._load_report_rows()
         if loaded is None:
             return
@@ -659,6 +728,7 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         self.destroy()
 
     def gerar_modelo_xlsx(self):
+        """Exporta relatorio para XLSX usando template institucional."""
         if load_workbook is None:
             messagebox.showerror(
                 "Dependência ausente",
@@ -722,12 +792,14 @@ class RelatorioPeriodoWindow(tk.Toplevel):
 
 
 class BackupAnoWindow(tk.Toplevel):
-    def __init__(self, parent, repo):
+    """Janela modal para gerar backup SQL por ano de referencia."""
+
+    def __init__(self, parent, repo: TalaoRepository):
         super().__init__(parent)
         self.repo = repo
         self.title("Backup por Ano")
-        self.geometry("300x130")
-        self.minsize(300, 130)
+        self.geometry("210x130")
+        self.minsize(210, 130)
         self.resizable(True, True)
         self.ano_var = tk.StringVar(value=str(datetime.now().year - 1))
         self.use_ctk = ctk is not None
@@ -808,10 +880,12 @@ class BackupAnoWindow(tk.Toplevel):
             _build_button(actions, "Backup SQL", self.gerar_backup, "danger").pack(side="left")
             _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
+        _center_toplevel_on_parent(self, parent)
         self.transient(parent)
         self.grab_set()
 
     def _sql_literal(self, value):
+        """Converte valor Python para literal SQL seguro para script."""
         if value is None:
             return "NULL"
         if isinstance(value, bool):
@@ -828,6 +902,7 @@ class BackupAnoWindow(tk.Toplevel):
         return f"N'{text}'"
 
     def _build_insert_block(self, table_name, columns, rows):
+        """Monta bloco de INSERTs para uma tabela e conjunto de linhas."""
         if not rows:
             return [f"-- Nenhum registro para {table_name}."]
         cols_sql = ", ".join(f"[{col}]" for col in columns)
@@ -839,6 +914,7 @@ class BackupAnoWindow(tk.Toplevel):
         return lines
 
     def gerar_backup(self):
+        """Gera arquivo SQL de backup contendo dados de um ano."""
         ano_txt = self.ano_var.get().strip()
         try:
             ano = int(ano_txt)
@@ -908,12 +984,17 @@ class BackupAnoWindow(tk.Toplevel):
 
 
 class AFISDashboard:
-    ALERT_POLL_MS = 60000
+    """Tela principal do sistema AFIS com operacoes de cadastro e monitoramento."""
+
+    ALERT_POLL_MS = 30000
     AUTO_REFRESH_MS = 60000
 
-    def __init__(self, root, repo):
+    def __init__(self, root, repo: TalaoRepository):
+        """Inicializa estado da tela principal e agenda rotinas automaticas."""
         self.root = root
         self.repo = repo
+        self.talao_service = TalaoService()
+        self.alerta_service = AlertaService()
 
         self.root.title("Registro AFIS - CECOP")
         self.root.geometry("1080x760")
@@ -936,6 +1017,7 @@ class AFISDashboard:
         self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
 
     def _apply_theme(self):
+        """Configura estilos visuais globais da interface principal."""
         style = ttk.Style()
         style.theme_use("clam")
         style.configure("AFIS.TLabelframe", background=UI_THEME["surface"], borderwidth=1)
@@ -950,9 +1032,11 @@ class AFISDashboard:
             self.root.configure(bg=UI_THEME["bg"])
 
     def _build_button(self, parent, text, command, variant="neutral"):
+        """Cria botao padronizado no contexto do dashboard."""
         return _build_button(parent, text, command, variant=variant, use_ctk=ctk is not None)
 
     def _build_layout(self):
+        """Monta layout completo do dashboard principal."""
         titulo = tk.Label(
             self.root,
             text="Registro Digital de Talões AFIS",
@@ -1113,6 +1197,7 @@ class AFISDashboard:
         self.tree.pack(fill="both", expand=True)
 
     def _set_defaults(self):
+        """Restaura valores padrao dos campos de abertura."""
         defaults = {
             "status": STATUS_MONITORADO,
             "data_bo": "",
@@ -1145,6 +1230,7 @@ class AFISDashboard:
         self._refresh_proximo_talao()
 
     def _resolve_asset_path(self, path_value):
+        """Resolve caminho de asset relativo ao diretorio raiz do projeto."""
         if not path_value:
             return None
         candidate = Path(path_value).expanduser()
@@ -1154,6 +1240,7 @@ class AFISDashboard:
         return (project_root / candidate).resolve()
 
     def _load_watermark_image(self):
+        """Carrega e redimensiona imagem de marca d'agua, quando configurada."""
         image_path = self._resolve_asset_path(get_env("APP_WATERMARK_IMAGE_PATH") or get_env("APP_HEADER_IMAGE_PATH"))
         if not image_path or not image_path.exists():
             return None
@@ -1175,6 +1262,7 @@ class AFISDashboard:
             return None
 
     def _setup_watermark(self):
+        """Posiciona marca d'agua no fundo da janela principal."""
         self.watermark_image = self._load_watermark_image()
         if self.watermark_image is None:
             return
@@ -1183,6 +1271,7 @@ class AFISDashboard:
         self.watermark_label.lower()
 
     def _collect_form_data(self):
+        """Coleta e normaliza dados do formulario de abertura."""
         data = {}
         for key, widget in self.widgets.items():
             if isinstance(widget, tk.Text):
@@ -1196,31 +1285,37 @@ class AFISDashboard:
         return data
 
     def _bind_data_bo_placeholder(self, widget):
+        """Vincula eventos de placeholder ao campo data BO principal."""
         widget.bind("<FocusIn>", lambda _e: self._on_data_bo_focus_in(widget))
         widget.bind("<FocusOut>", lambda _e: self._on_data_bo_focus_out(widget))
         widget.bind("<KeyPress>", lambda e: self._on_data_bo_key_press(widget, e))
 
     def _set_data_bo_placeholder(self, widget):
+        """Aplica placeholder visual no campo data BO principal."""
         widget.delete(0, tk.END)
         widget.insert(0, "dd/mm/aaaa")
         widget.configure(fg=UI_THEME["placeholder"])
         self.data_bo_placeholder_active = True
 
     def _on_data_bo_focus_in(self, widget):
+        """Mantem cursor no inicio quando placeholder estiver ativo."""
         if self.data_bo_placeholder_active:
             widget.icursor(0)
 
     def _on_data_bo_focus_out(self, widget):
+        """Reaplica placeholder no campo data BO quando vazio."""
         if not widget.get().strip():
             self._set_data_bo_placeholder(widget)
 
     def _on_data_bo_key_press(self, widget, event):
+        """Remove placeholder ao iniciar digitacao no campo data BO."""
         if self.data_bo_placeholder_active and (event.char and event.char.isprintable()):
             widget.delete(0, tk.END)
             widget.configure(fg=UI_THEME["text"])
             self.data_bo_placeholder_active = False
 
     def _refresh_proximo_talao(self):
+        """Atualiza informacao de proximo numero de talao na interface."""
         try:
             ano = datetime.now().year
             numero = self.repo.get_next_talao(ano)
@@ -1229,14 +1324,11 @@ class AFISDashboard:
             self.proximo_talao_var.set("indisponível")
 
     def criar_talao(self):
+        """Processa criacao de novo talao a partir do formulario principal."""
         data = self._collect_form_data()
-        now = datetime.now()
-        data["data_solic"] = now.strftime("%d/%m/%Y")
-        data["hora_solic"] = now.strftime("%H:%M")
-        data["status"] = STATUS_MONITORADO
 
         try:
-            normalized, missing = normalize_and_validate(data, CREATE_REQUIRED)
+            normalized, missing, now = self.talao_service.prepare_new_talao(data)
         except ValueError as exc:
             messagebox.showwarning("Validação", str(exc))
             return
@@ -1260,6 +1352,7 @@ class AFISDashboard:
             messagebox.showerror("Erro", "Falha ao gravar talão. Verifique os dados e tente novamente.")
 
     def editar_selecionado(self):
+        """Abre a janela de edicao para o talao selecionado na grade."""
         selected = self.tree.selection()
         if not selected:
             messagebox.showinfo("Info", "Selecione um talão na lista.")
@@ -1267,22 +1360,33 @@ class AFISDashboard:
 
         item_id = selected[0]
         valores = self.tree.item(item_id).get("values", [])
-        status_atual = str(valores[4]).strip().lower() if len(valores) >= 5 else ""
-        if status_atual in (STATUS_FINALIZADO, STATUS_CANCELADO):
+        status_atual = str(valores[4]).strip().upper() if len(valores) >= 5 else ""
+        if self.alerta_service.is_edit_blocked_status(status_atual):
             messagebox.showinfo("Info", "Talões finalizados ou cancelados não podem ser editados.")
             return
 
         talao_id = int(item_id)
         intervalo = self.intervalo_map.get(self.alerta_var.get(), DEFAULT_ALERT_INTERVAL_MIN)
-        TalaoEditor(self.root, self.repo, talao_id, intervalo, self.refresh_tree)
+        TalaoEditor(
+            self.root,
+            self.repo,
+            self.talao_service,
+            self.alerta_service,
+            talao_id,
+            intervalo,
+            self.refresh_tree,
+        )
 
     def abrir_relatorios(self):
+        """Abre janela modal de relatorios por periodo."""
         RelatorioPeriodoWindow(self.root, self.repo)
 
     def abrir_backup(self):
+        """Abre janela modal de backup anual."""
         BackupAnoWindow(self.root, self.repo)
 
     def refresh_tree(self, silent=False):
+        """Recarrega a grade principal com os taloes visiveis."""
         for iid in self.tree.get_children():
             self.tree.delete(iid)
 
@@ -1307,13 +1411,28 @@ class AFISDashboard:
         self._refresh_proximo_talao()
 
     def _auto_refresh(self):
+        """Executa atualizacao periodica silenciosa da grade."""
         self.refresh_tree(silent=True)
         self.root.after(self.AUTO_REFRESH_MS, self._auto_refresh)
 
+    def _has_active_modal(self):
+        """Verifica se existe janela modal ativa bloqueando foco."""
+        for child in self.root.winfo_children():
+            if isinstance(child, tk.Toplevel) and child.winfo_exists():
+                if child.grab_current() is child:
+                    return True
+        return False
+
     def processar_alertas(self):
+        """Processa alertas vencidos de monitoramento em ciclos."""
+        if self._has_active_modal():
+            self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
+            return
+
         try:
             due_rows = self.repo.list_due_monitoring()
         except Exception:
+            logger.exception("Falha ao consultar alertas de monitoramento")
             self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
             return
 
@@ -1321,51 +1440,45 @@ class AFISDashboard:
         # e garantir foco no preenchimento/validação do talão em questão.
         for row in due_rows:
             talao_id, intervalo_min, ano, talao, boletim, status = row
-            if status != STATUS_MONITORADO:
+            if not self.alerta_service.is_monitorado(status):
                 continue
 
             self.root.bell()
-            pergunta = (
-                f"Talão {format_talao(ano, talao)} (Boletim: {boletim or 'sem boletim'}) segue monitorado.\n\n"
-                "As ações necessárias para encerrar o monitoramento já foram cumpridas?"
-            )
+            pergunta = self.alerta_service.build_monitoring_question(ano, talao, boletim)
             confirmar = messagebox.askyesno("Alerta de monitoramento", pergunta)
 
-            if confirmar:
-                self._tentar_finalizar_por_alerta(talao_id, intervalo_min)
-            else:
-                self.repo.postpone_monitoring(talao_id, intervalo_min)
+            try:
+                if confirmar:
+                    self._tentar_finalizar_por_alerta(talao_id, intervalo_min)
+                else:
+                    self.repo.postpone_monitoring(talao_id, intervalo_min)
+            except Exception:
+                logger.exception("Falha ao processar alerta do talão %s", talao_id)
+                messagebox.showerror("Erro", "Falha ao processar alerta de monitoramento.")
             break
 
         self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
 
     def _tentar_finalizar_por_alerta(self, talao_id, intervalo_min):
+        """Tenta finalizar talao via alerta, com validacoes e confirmacoes."""
         record = self.repo.get_talao(talao_id)
         if not record:
             return
 
-        data = {key: "" for key in EDITABLE_FIELDS}
-        for key in EDITABLE_FIELDS:
-            value = record.get(key)
-            if value is None:
-                data[key] = ""
-            elif key == "data_bo":
-                data[key] = value.strftime("%d/%m/%Y")
-            else:
-                data[key] = str(value)
-        data_solic = record.get("data_solic")
-        hora_solic = record.get("hora_solic")
-        data["data_solic"] = data_solic.strftime("%d/%m/%Y") if data_solic else ""
-        data["hora_solic"] = str(hora_solic)[:5] if hora_solic else ""
-
-        data["status"] = STATUS_FINALIZADO
-
         try:
-            normalized, missing = normalize_and_validate(data, FINALIZE_REQUIRED)
+            normalized, missing = self.talao_service.prepare_finalize_from_record(record)
         except ValueError as exc:
             messagebox.showwarning("Validação", str(exc))
             self.repo.postpone_monitoring(talao_id, intervalo_min)
-            TalaoEditor(self.root, self.repo, talao_id, intervalo_min, self.refresh_tree)
+            TalaoEditor(
+                self.root,
+                self.repo,
+                self.talao_service,
+                self.alerta_service,
+                talao_id,
+                intervalo_min,
+                self.refresh_tree,
+            )
             return
 
         if missing:
@@ -1375,7 +1488,30 @@ class AFISDashboard:
                 + "\n- ".join(missing),
             )
             self.repo.postpone_monitoring(talao_id, intervalo_min)
-            TalaoEditor(self.root, self.repo, talao_id, intervalo_min, self.refresh_tree)
+            TalaoEditor(
+                self.root,
+                self.repo,
+                self.talao_service,
+                self.alerta_service,
+                talao_id,
+                intervalo_min,
+                self.refresh_tree,
+            )
+            return
+
+        confirmar_envio = messagebox.askyesno(
+            "Confirmação obrigatória",
+            self.alerta_service.build_final_boletim_confirmation_question(),
+            parent=self.root,
+        )
+        if not confirmar_envio:
+            self.repo.postpone_monitoring(talao_id, intervalo_min)
+            messagebox.showinfo(
+                "Status mantido",
+                "O talão permanecerá como MONITORADO porque o boletim finalizado ainda não foi enviado.",
+                parent=self.root,
+            )
+            self.refresh_tree()
             return
 
         try:
@@ -1395,6 +1531,7 @@ class AFISDashboard:
 
 
 def build_root():
+    """Cria janela raiz usando CTk quando disponivel, senao Tk padrao."""
     if ctk is not None:
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")

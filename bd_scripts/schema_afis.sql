@@ -86,7 +86,7 @@ BEGIN
         criado_em DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         atualizado_em DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         CONSTRAINT uq_taloes_ano_talao UNIQUE (ano, talao),
-        CONSTRAINT ck_taloes_status CHECK (status IN (''monitorado'', ''finalizado'', ''cancelado''))
+        CONSTRAINT ck_taloes_status CHECK (status IN (''MONITORADO'', ''FINALIZADO'', ''CANCELADO''))
     );
     PRINT ''✅ Tabela taloes criada em ' + @BancoDestino + ''';
 END
