@@ -135,11 +135,41 @@ def _build_button(parent, text, command, variant="neutral", use_ctk=False, width
     )
 
 
+def _center_toplevel_on_parent(window, parent):
+    window.update_idletasks()
+    parent.update_idletasks()
+
+    width = window.winfo_width()
+    height = window.winfo_height()
+    if width <= 1 or height <= 1:
+        width = window.winfo_reqwidth()
+        height = window.winfo_reqheight()
+
+    parent_x = parent.winfo_rootx()
+    parent_y = parent.winfo_rooty()
+    parent_w = parent.winfo_width()
+    parent_h = parent.winfo_height()
+
+    x = parent_x + (parent_w - width) // 2
+    y = parent_y + (parent_h - height) // 2
+    window.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+
 class TalaoEditor(tk.Toplevel):
-    def __init__(self, parent, repo: TalaoRepository, talao_service: TalaoService, talao_id, intervalo_min, on_saved):
+    def __init__(
+        self,
+        parent,
+        repo: TalaoRepository,
+        talao_service: TalaoService,
+        alerta_service: AlertaService,
+        talao_id,
+        intervalo_min,
+        on_saved,
+    ):
         super().__init__(parent)
         self.repo = repo
         self.talao_service = talao_service
+        self.alerta_service = alerta_service
         self.talao_id = talao_id
         self.on_saved = on_saved
         self.title("Editar Talão")
@@ -342,6 +372,7 @@ class TalaoEditor(tk.Toplevel):
             _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
         self.form_parent.columnconfigure(1, weight=1)
+        _center_toplevel_on_parent(self, parent)
         self.transient(parent)
         self.grab_set()
 
@@ -407,6 +438,23 @@ class TalaoEditor(tk.Toplevel):
             messagebox.showwarning("Validação", "Campos obrigatórios:\n- " + "\n- ".join(missing))
             return
 
+        if normalized.get("status") == STATUS_FINALIZADO:
+            confirmar_envio = messagebox.askyesno(
+                "Confirmação obrigatória",
+                self.alerta_service.build_final_boletim_confirmation_question(),
+                parent=self,
+            )
+            if not confirmar_envio:
+                normalized["status"] = STATUS_MONITORADO
+                status_widget = self.widgets.get("status")
+                if status_widget is not None and hasattr(status_widget, "set"):
+                    status_widget.set(STATUS_MONITORADO)
+                messagebox.showinfo(
+                    "Status mantido",
+                    "O talão permanecerá como MONITORADO porque o boletim finalizado ainda não foi enviado.",
+                    parent=self,
+                )
+
         try:
             self.repo.update_talao(
                 self.talao_id,
@@ -430,8 +478,8 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         super().__init__(parent)
         self.repo = repo
         self.title("Relatórios por Período")
-        self.geometry("260x180")
-        self.minsize(260, 180)
+        self.geometry("210x180")
+        self.minsize(210, 180)
         self.resizable(True, True)
         self.date_placeholder_active = {"inicio": False, "fim": False}
         self.use_ctk = ctk is not None
@@ -541,6 +589,7 @@ class RelatorioPeriodoWindow(tk.Toplevel):
         self._set_date_placeholder(self.data_inicio_entry, "inicio")
         self._set_date_placeholder(self.data_fim_entry, "fim")
 
+        _center_toplevel_on_parent(self, parent)
         self.transient(parent)
         self.grab_set()
 
@@ -717,8 +766,8 @@ class BackupAnoWindow(tk.Toplevel):
         super().__init__(parent)
         self.repo = repo
         self.title("Backup por Ano")
-        self.geometry("300x130")
-        self.minsize(300, 130)
+        self.geometry("210x130")
+        self.minsize(210, 130)
         self.resizable(True, True)
         self.ano_var = tk.StringVar(value=str(datetime.now().year - 1))
         self.use_ctk = ctk is not None
@@ -799,6 +848,7 @@ class BackupAnoWindow(tk.Toplevel):
             _build_button(actions, "Backup SQL", self.gerar_backup, "danger").pack(side="left")
             _build_button(actions, "Cancelar", self.destroy, "neutral").pack(side="left", padx=(8, 0))
 
+        _center_toplevel_on_parent(self, parent)
         self.transient(parent)
         self.grab_set()
 
@@ -1263,7 +1313,15 @@ class AFISDashboard:
 
         talao_id = int(item_id)
         intervalo = self.intervalo_map.get(self.alerta_var.get(), DEFAULT_ALERT_INTERVAL_MIN)
-        TalaoEditor(self.root, self.repo, self.talao_service, talao_id, intervalo, self.refresh_tree)
+        TalaoEditor(
+            self.root,
+            self.repo,
+            self.talao_service,
+            self.alerta_service,
+            talao_id,
+            intervalo,
+            self.refresh_tree,
+        )
 
     def abrir_relatorios(self):
         RelatorioPeriodoWindow(self.root, self.repo)
@@ -1351,7 +1409,15 @@ class AFISDashboard:
         except ValueError as exc:
             messagebox.showwarning("Validação", str(exc))
             self.repo.postpone_monitoring(talao_id, intervalo_min)
-            TalaoEditor(self.root, self.repo, self.talao_service, talao_id, intervalo_min, self.refresh_tree)
+            TalaoEditor(
+                self.root,
+                self.repo,
+                self.talao_service,
+                self.alerta_service,
+                talao_id,
+                intervalo_min,
+                self.refresh_tree,
+            )
             return
 
         if missing:
@@ -1361,7 +1427,30 @@ class AFISDashboard:
                 + "\n- ".join(missing),
             )
             self.repo.postpone_monitoring(talao_id, intervalo_min)
-            TalaoEditor(self.root, self.repo, self.talao_service, talao_id, intervalo_min, self.refresh_tree)
+            TalaoEditor(
+                self.root,
+                self.repo,
+                self.talao_service,
+                self.alerta_service,
+                talao_id,
+                intervalo_min,
+                self.refresh_tree,
+            )
+            return
+
+        confirmar_envio = messagebox.askyesno(
+            "Confirmação obrigatória",
+            self.alerta_service.build_final_boletim_confirmation_question(),
+            parent=self.root,
+        )
+        if not confirmar_envio:
+            self.repo.postpone_monitoring(talao_id, intervalo_min)
+            messagebox.showinfo(
+                "Status mantido",
+                "O talão permanecerá como MONITORADO porque o boletim finalizado ainda não foi enviado.",
+                parent=self.root,
+            )
+            self.refresh_tree()
             return
 
         try:

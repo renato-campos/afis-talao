@@ -1,59 +1,35 @@
 # Manual do Usuario - Sistema AFIS Talao
 
-## 1. Objetivo do sistema
+## 1. Para que serve o sistema
 
-O sistema substitui o registro manual em livro para controle de taloes AFIS, com:
+O sistema AFIS Talao e usado para registrar, acompanhar e encerrar taloes de forma digital.
 
-- cadastro e acompanhamento de taloes;
-- alertas de monitoramento;
-- edicao de taloes em andamento;
-- geracao de relatorios (CSV e Excel por modelo);
-- geracao de backup SQL por ano.
+Com ele, voce consegue:
 
-## 2. Visao geral do fluxo de trabalho
+- abrir novos taloes;
+- acompanhar taloes em monitoramento;
+- receber alertas periodicos;
+- editar taloes em andamento;
+- gerar relatorios por periodo;
+- gerar backup anual.
 
-Fluxo recomendado no dia a dia:
+## 2. Fluxo rapido de uso (dia a dia)
 
-1. Abrir o sistema e confirmar conexao com banco.
-2. Registrar novo talao na tela principal.
-3. Acompanhar a lista de taloes visiveis e os alertas de monitoramento.
-4. Editar talao quando houver atualizacao operacional.
-5. Fechar/finalizar talao quando os campos obrigatorios estiverem completos.
-6. Gerar relatorio por periodo para encaminhamento.
-7. Gerar backup SQL periodico (por ano).
+Use esta sequencia como referencia:
 
-## 3. Inicio e configuracao
+1. Abra o sistema.
+2. Preencha os dados do novo talao e clique em `Salvar`.
+3. Acompanhe a lista de taloes na parte inferior da tela.
+4. Quando houver atualizacao, selecione o talao e clique em `Editar`.
+5. Responda os alertas quando aparecerem.
+6. Gere relatorios quando precisar encaminhar resultados.
+7. Gere backup periodico para seguranca dos dados.
 
-### 3.1 Arquivo de ambiente
+## 3. Tela principal (o que cada parte faz)
 
-As configuracoes do sistema ficam no arquivo:
+### 3.1 Formulario de abertura
 
-- `assets/.env`
-
-Exemplos de variaveis usadas:
-
-- `DB_SERVER`
-- `DB_NAME`
-- `DB_USER` e `DB_PASSWORD` (quando nao usa trusted connection)
-- `APP_ICON_PATH`
-- `APP_WATERMARK_IMAGE_PATH` (opcional)
-
-### 3.2 Inicializacao
-
-Ao iniciar, o sistema:
-
-1. carrega o `.env`;
-2. tenta conectar no SQL Server;
-3. valida existencia das tabelas principais;
-4. abre a tela principal.
-
-Se houver falha de conexao/esquema, uma mensagem de erro sera exibida.
-
-## 4. Tela principal
-
-## 4.1 Campos de abertura de talao
-
-Na abertura, os principais campos operacionais sao:
+Na parte superior da tela voce informa os dados do atendimento:
 
 - Delegacia
 - Autoridade
@@ -67,25 +43,23 @@ Na abertura, os principais campos operacionais sao:
 - Operador
 - Observacao
 
-O sistema exibe tambem:
+Tambem aparecem:
 
-- proximo numero de talao do ano atual;
-- intervalo de alerta (minutos).
+- `Proximo Talao` do ano atual;
+- `Alerta (min)` para definir o intervalo do monitoramento.
 
-## 4.2 Botoes da tela principal
+### 3.2 Botoes principais
 
-Ordem atual:
+- `Salvar`: abre um novo talao com status monitorado.
+- `Editar`: altera um talao selecionado na lista.
+- `Atualizar`: recarrega a lista de taloes visiveis.
+- `Limpar`: limpa o formulario para novo preenchimento.
+- `Relatorios`: abre a janela de exportacao por periodo.
+- `Backup`: abre a janela de backup por ano.
 
-1. `Salvar`
-2. `Editar`
-3. `Atualizar`
-4. `Limpar`
-5. `Relatorios`
-6. `Backup`
+### 3.3 Lista de taloes visiveis
 
-## 4.3 Lista de taloes visiveis
-
-A grade mostra:
+A lista mostra:
 
 - Talao
 - Boletim
@@ -93,133 +67,98 @@ A grade mostra:
 - Natureza
 - Status
 
-Cores por status ajudam na leitura:
+Cores de apoio:
 
-- monitorado - amarelo;
-- finalizado - verde;
-- cancelado  - vermelho.
+- monitorado: amarelo
+- finalizado: verde
+- cancelado: vermelho
 
-## 5. Regras de status e obrigatoriedade
+## 4. Como abrir um novo talao
 
-Os status do sistema sao:
+1. Preencha os campos do formulario.
+2. Escolha o intervalo em `Alerta (min)`.
+3. Clique em `Salvar`.
 
-- `MONITORADO`
-- `FINALIZADO`
-- `CANCELADO`
+O sistema preenche automaticamente:
 
-Campos obrigatorios variam conforme status:
+- data da solicitacao;
+- hora da solicitacao;
+- status inicial como `MONITORADO`;
+- numero sequencial do talao no ano atual.
 
-- **Criacao/Monitorado**: data/hora solicitacao, delegacia, autoridade, solicitante, endereco, operador, status.
-- **Finalizado**: exige os campos acima e tambem boletim, natureza, data BO, vitimas e equipe.
-- **Cancelado**: exige os campos de criacao e observacao.
+## 5. Como editar um talao
 
-Observacoes:
-
-- Data deve estar em formato `dd/mm/aaaa`.
-- Hora deve estar em formato `HH:MM`.
-- Taloes finalizados ou cancelados nao podem ser editados.
-
-## 6. Janela de edicao
-
-Ao clicar em `Editar`:
-
-1. selecione um talao na grade;
-2. abra a janela de edicao;
-3. atualize os campos necessarios;
-4. clique em `Salvar`.
+1. Selecione um talao na lista.
+2. Clique em `Editar`.
+3. Ajuste os campos necessarios.
+4. Clique em `Salvar`.
 
 Importante:
 
-- o campo `Vitimas` aceita multilinha (Enter para separar por linha);
-- o sistema faz validacoes antes de gravar;
-- se outro terminal editar antes, o sistema pode sinalizar conflito de concorrencia.
+- taloes `FINALIZADO` e `CANCELADO` nao podem ser editados;
+- se outro terminal tiver salvo alteracoes antes, o sistema pode avisar conflito.
 
-## 7. Monitoramento e alertas
+## 6. Status do talao (quando usar cada um)
 
-O sistema processa alertas automaticamente em ciclos.
+- `MONITORADO`: talao ainda em acompanhamento.
+- `FINALIZADO`: atendimento encerrado com dados completos.
+- `CANCELADO`: talao encerrado por cancelamento (com justificativa em observacao).
 
-Quando um talao monitorado vence o proximo alerta:
+Campos obrigatorios por status:
 
-1. o sistema exibe popup de confirmacao;
-2. se confirmar, tenta finalizar automaticamente;
-3. se faltar campo obrigatorio, reabre o talao para complemento;
-4. se negar, o monitoramento e postergado conforme intervalo.
+- Monitorado: dados basicos de abertura.
+- Finalizado: dados basicos + boletim + natureza + data BO + vitimas + equipe.
+- Cancelado: dados basicos + observacao.
 
-## 8. Relatorios
+Padrao de preenchimento:
 
-A janela `Relatorios` permite informar:
+- data: `dd/mm/aaaa`
+- hora: `HH:MM`
 
-- data inicio;
-- data fim.
+## 7. Alertas de monitoramento (como responder)
 
-O periodo considera o campo:
+Quando um talao monitorado atinge o horario de alerta, aparece uma pergunta de confirmacao:
 
-- `data_solic` (data de solicitacao).
+- Se responder `Sim`: o sistema tenta finalizar automaticamente.
+- Se faltar informacao obrigatoria para finalizar: o talao e aberto para complementar.
+- Se responder `Nao`: o proximo alerta e adiado conforme o intervalo definido.
 
-### 8.1 Exportacao CSV
+## 8. Relatorios (passo a passo)
 
-Botao `CSV` gera um arquivo com os registros do periodo.
+1. Clique em `Relatorios`.
+2. Informe `Data inicio` e `Data fim`.
+3. Escolha:
+   - `CSV` para planilha simples;
+   - `Excel` para exportar no modelo padrao do setor.
+4. Escolha a pasta e salve o arquivo.
 
-### 8.2 Exportacao Excel por modelo
+Observacao:
 
-Botao `Excel` gera um arquivo baseado no template:
+- o periodo considera a data de solicitacao do talao.
 
-- `assets/modelo.xlsx`
+## 9. Backup anual (passo a passo)
 
-Preenchimento no modelo (a partir da linha 7):
+1. Clique em `Backup`.
+2. Informe o ano de referencia.
+3. Clique em `Backup SQL`.
+4. Escolha onde salvar.
 
-- Data Solic.
-- TALAO
-- Data BO
-- BO
-- Delegacia
-- Natureza
-- Vitimas
-- Equipe
+O arquivo gerado contem os registros daquele ano para restauracao futura e/ ou auditoria, se necessario.
 
-Requisito:
+## 10. Boas praticas de operacao
 
-- biblioteca `openpyxl` instalada no ambiente.
+- Preencha os dados essenciais no momento da abertura.
+- Nao deixe alerta acumulado sem resposta.
+- Atualize o status de acordo com a situacao real.
+- Gere relatorio com frequencia definida pela equipe.
+- Gere backup regularmente e guarde copia em local seguro.
 
-## 9. Backup
+## 11. Duvidas comuns (solucao rapida)
 
-A janela `Backup` gera arquivo SQL por ano.
+- **Nao abre o sistema**: acione o suporte para validar conexao e configuracao.
+- **Nao consigo salvar/finalizar**: revise campos obrigatorios e formato de data/hora.
+- **Talao nao aparece na lista**: clique em `Atualizar`.
+- **Conflito ao salvar edicao**: recarregue a lista e tente novamente.
+- **Excel nao gera**: acione o suporte para validar componentes do ambiente.
 
-Fluxo:
 
-1. informar ano de referencia;
-2. clicar em `Backup SQL`;
-3. escolher local de salvamento.
-
-O arquivo inclui dados de:
-
-- `dbo.taloes`;
-- `dbo.monitoramento` do mesmo ano.
-
-## 10. Boas praticas operacionais
-
-- Preencher sempre campos essenciais no momento da abertura.
-- Atualizar status conforme evolucao real do caso.
-- Revisar alertas no tempo certo.
-- Gerar relatorio periodico para supervisao.
-- Gerar backup recorrente e guardar copia em local seguro.
-- Nao compartilhar credenciais de banco no `.env`.
-
-## 11. Solucao de problemas (rapido)
-
-- **Erro ao iniciar**: conferir `assets/.env` e conectividade com SQL Server.
-- **Erro de schema**: executar `schema.sql` no banco correto.
-- **Sem icone/logo**: validar caminhos de assets no `.env`.
-- **Excel nao gera**: instalar `openpyxl`.
-- **Dados nao aparecem na grade**: usar `Atualizar` e checar filtro de visibilidade (ultimo, monitorados ou ultimas 24h).
-
-## 12. Referencia de arquivos do sistema
-
-- Entrada da aplicacao: `main.py`
-- Configuracao: `afis_app/config.py`
-- Interface: `afis_app/ui.py`
-- Regras e labels: `afis_app/constants.py`
-- Validacoes: `afis_app/validators.py`
-- Acesso ao banco: `afis_app/repository.py`
-- Template de relatorio: `assets/modelo.xlsx`
-- Log de execucao: `afis_app.log`

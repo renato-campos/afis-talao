@@ -3,7 +3,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from .constants import CANCEL_REQUIRED, CREATE_REQUIRED, EDITABLE_FIELDS, FINALIZE_REQUIRED, STATUS_CANCELADO, STATUS_FINALIZADO, STATUS_MONITORADO
+from .constants import (
+    CANCEL_REQUIRED,
+    CREATE_REQUIRED,
+    EDITABLE_FIELDS,
+    FINALIZE_REQUIRED,
+    STATUS_CANCELADO,
+    STATUS_FINALIZADO,
+    STATUS_MONITORADO,
+)
 from .validators import normalize_and_validate
 
 
@@ -16,7 +24,9 @@ class TalaoService:
             return CANCEL_REQUIRED
         return CREATE_REQUIRED
 
-    def prepare_new_talao(self, form_data: dict[str, Any], now: datetime | None = None) -> tuple[dict[str, Any], list[str], datetime]:
+    def prepare_new_talao(
+        self, form_data: dict[str, Any], now: datetime | None = None
+    ) -> tuple[dict[str, Any], list[str], datetime]:
         current = now or datetime.now()
         data = dict(form_data)
         data["data_solic"] = current.strftime("%d/%m/%Y")
@@ -25,12 +35,16 @@ class TalaoService:
         normalized, missing = normalize_and_validate(data, CREATE_REQUIRED)
         return normalized, missing, current
 
-    def prepare_update_talao(self, form_data: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    def prepare_update_talao(
+        self, form_data: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str]]:
         data = dict(form_data)
         required = self._required_fields_for_status(str(data.get("status") or ""))
         return normalize_and_validate(data, required)
 
-    def prepare_finalize_from_record(self, record: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    def prepare_finalize_from_record(
+        self, record: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str]]:
         data = {key: "" for key in EDITABLE_FIELDS}
         for key in EDITABLE_FIELDS:
             value = record.get(key)
@@ -63,8 +77,11 @@ class AlertaService:
             "As ações necessárias para encerrar o monitoramento já foram cumpridas?"
         )
 
+    def build_final_boletim_confirmation_question(self) -> str:
+        return "Foi enviado o Boletim finalizado para o Grupo AFIS no zap?"
+
     def _format_talao(self, ano: Any, numero: Any) -> str:
         try:
             return f"{int(numero):04d}/{int(ano)}"
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return f"{numero or '----'}/{ano or '----'}"
