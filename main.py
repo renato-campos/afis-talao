@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from afis_app.config import get_env, load_env_file
-
+from afis_app.interfaces import TalaoRepository
 from afis_app.repository import SQLServerRepository
 from afis_app.ui import AFISDashboard, build_root
 
@@ -49,7 +49,7 @@ def main():
     _configure_app_icon(root)
 
     try:
-        repository = SQLServerRepository()
+        repository: TalaoRepository = SQLServerRepository()
     except Exception:
         logging.getLogger(__name__).exception("Falha na inicialização da aplicação")
         messagebox.showerror(

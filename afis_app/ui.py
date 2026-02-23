@@ -27,6 +27,7 @@ from .constants import (
     STATUS_OPCOES,
 )
 from .config import get_env
+from .interfaces import TalaoRepository
 from .repository import ConcurrencyError, DuplicateTalaoError
 from .validators import normalize_and_validate
 
@@ -138,7 +139,7 @@ def _build_button(parent, text, command, variant="neutral", use_ctk=False, width
 
 
 class TalaoEditor(tk.Toplevel):
-    def __init__(self, parent, repo, talao_id, intervalo_min, on_saved):
+    def __init__(self, parent, repo: TalaoRepository, talao_id, intervalo_min, on_saved):
         super().__init__(parent)
         self.repo = repo
         self.talao_id = talao_id
@@ -435,7 +436,7 @@ class TalaoEditor(tk.Toplevel):
 
 
 class RelatorioPeriodoWindow(tk.Toplevel):
-    def __init__(self, parent, repo):
+    def __init__(self, parent, repo: TalaoRepository):
         super().__init__(parent)
         self.repo = repo
         self.title("Relatórios por Período")
@@ -722,7 +723,7 @@ class RelatorioPeriodoWindow(tk.Toplevel):
 
 
 class BackupAnoWindow(tk.Toplevel):
-    def __init__(self, parent, repo):
+    def __init__(self, parent, repo: TalaoRepository):
         super().__init__(parent)
         self.repo = repo
         self.title("Backup por Ano")
@@ -911,7 +912,7 @@ class AFISDashboard:
     ALERT_POLL_MS = 30000
     AUTO_REFRESH_MS = 60000
 
-    def __init__(self, root, repo):
+    def __init__(self, root, repo: TalaoRepository):
         self.root = root
         self.repo = repo
 
