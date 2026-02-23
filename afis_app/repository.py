@@ -13,23 +13,33 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseError(Exception):
+    """Erro base de acesso a dados e regras de persistencia."""
+
     pass
 
 
 class ConcurrencyError(DatabaseError):
+    """Erro de concorrencia otimista durante atualizacao de talao."""
+
     pass
 
 
 class DuplicateTalaoError(DatabaseError):
+    """Erro de conflito de numeracao unica (ano + talao)."""
+
     pass
 
 
 class SQLServerRepository:
+    """Repositorio SQL Server com operacoes de talao e monitoramento."""
+
     def __init__(self):
+        """Inicializa conexao e valida presenca do schema obrigatorio."""
         self.connection_string = self._build_connection_string()
         self.ensure_schema_is_ready()
 
     def _build_connection_string(self):
+        """Monta string de conexao a partir das variaveis de ambiente."""
         driver = get_env("DB_DRIVER", default="ODBC Driver 18 for SQL Server")
         driver = str(driver).strip("{}")
         server = get_env("DB_SERVER")
@@ -64,6 +74,7 @@ class SQLServerRepository:
         )
 
     def _to_yes_no(self, value):
+        """Normaliza valores booleanos para yes/no no formato do ODBC."""
         normalized = str(value).strip().lower()
         if normalized in ("1", "true", "yes", "y", "on"):
             return "yes"
@@ -73,11 +84,13 @@ class SQLServerRepository:
         return "no"
 
     def _connect(self):
+        """Abre conexao pyodbc com autocommit desativado."""
         if pyodbc is None:
             raise DatabaseError("pyodbc não está instalado.")
         return pyodbc.connect(self.connection_string, autocommit=False)
 
     def ensure_schema_is_ready(self):
+        """Confere a existencia das tabelas principais antes do uso."""
         with self._connect() as conn:
             cur = conn.cursor()
             cur.execute(
@@ -98,6 +111,7 @@ class SQLServerRepository:
                 )
 
     def get_next_talao(self, ano):
+        """Retorna o proximo numero de talao para um ano."""
         with self._connect() as conn:
             cur = conn.cursor()
             cur.execute("SELECT ISNULL(MAX(talao), 0) + 1 FROM dbo.taloes WHERE ano = ?", ano)
@@ -105,6 +119,7 @@ class SQLServerRepository:
             return self._to_int(row[0] if row else None, "próximo talão")
 
     def _to_int(self, value, context):
+        """Converte valor para int com mensagem de erro contextualizada."""
         if value is None:
             raise DatabaseError(f"Valor nulo retornado para {context}.")
         try:
@@ -113,27 +128,32 @@ class SQLServerRepository:
             raise DatabaseError(f"Valor inválido para {context}: {value!r}") from exc
 
     def _parse_required_date(self, value, field_name):
+        """Converte data obrigatoria no formato AAAA-MM-DD."""
         if value is None or str(value).strip() == "":
             raise DatabaseError(f"Campo {field_name} vazio.")
         return datetime.strptime(str(value), "%Y-%m-%d").date()
 
     def _parse_optional_date(self, value):
+        """Converte data opcional no formato AAAA-MM-DD."""
         if value is None or str(value).strip() == "":
             return None
         return datetime.strptime(str(value), "%Y-%m-%d").date()
 
     def _parse_required_time(self, value, field_name):
+        """Converte hora obrigatoria no formato HH:MM."""
         if value is None or str(value).strip() == "":
             raise DatabaseError(f"Campo {field_name} vazio.")
         return datetime.strptime(str(value), "%H:%M").time()
 
     def _nullable_text(self, value):
+        """Normaliza string para None quando vazia."""
         if value is None:
             return None
         txt = str(value).strip()
         return txt if txt else None
 
     def _build_db_payload(self, data):
+        """Monta payload normalizado para escrita no banco."""
         data_solic = self._parse_required_date(data.get("data_solic"), "data_solic")
         hora_solic = self._parse_required_time(data.get("hora_solic"), "hora_solic")
         return {
@@ -155,6 +175,7 @@ class SQLServerRepository:
         }
 
     def insert_talao(self, data, intervalo_min):
+        """Insere um talao e sincroniza o monitoramento inicial."""
         payload = self._build_db_payload(data)
         ano = payload["ano"]
 
@@ -208,6 +229,7 @@ class SQLServerRepository:
             return proximo_talao
 
     def update_talao(self, talao_id, data, intervalo_min, expected_updated_at=None):
+        """Atualiza dados de um talao com validacoes de integridade e concorrencia."""
         payload = self._build_db_payload(data)
         novo_ano = payload["ano"]
 
@@ -274,10 +296,12 @@ class SQLServerRepository:
             conn.commit()
 
     def _is_unique_key_violation(self, exc):
+        """Identifica se a excecao representa violacao de chave unica."""
         message = str(exc).lower()
         return "uq_taloes_ano_talao" in message or "unique" in message or "2601" in message or "2627" in message
 
     def _sync_monitoramento(self, cur, talao_id, status, intervalo_min):
+        """Cria/atualiza ou remove monitoramento conforme status do talao."""
         if status == STATUS_MONITORADO:
             cur.execute(
                 """
@@ -301,6 +325,7 @@ class SQLServerRepository:
             cur.execute("DELETE FROM dbo.monitoramento WHERE talao_id = ?", talao_id)
 
     def get_talao(self, talao_id):
+        """Busca e retorna um talao por ID em formato de dicionario."""
         with self._connect() as conn:
             cur = conn.cursor()
             cur.execute("SELECT * FROM dbo.taloes WHERE id = ?", talao_id)
@@ -311,6 +336,7 @@ class SQLServerRepository:
             return dict(zip(cols, row))
 
     def list_initial_taloes(self):
+        """Lista taloes para carga inicial da grade principal."""
         query = """
         WITH ultimo AS (
             SELECT TOP 1 id
@@ -333,6 +359,7 @@ class SQLServerRepository:
             return cur.fetchall()
 
     def list_due_monitoring(self):
+        """Lista taloes com alerta vencido no monitoramento."""
         query = """
         SELECT m.talao_id, m.intervalo_min, t.ano, t.talao, t.boletim, t.status
         FROM dbo.monitoramento m
@@ -347,6 +374,7 @@ class SQLServerRepository:
             return cur.fetchall()
 
     def list_taloes_by_period(self, data_inicio, data_fim):
+        """Retorna dados detalhados de taloes entre duas datas."""
         query = """
         SELECT
             t.id,
@@ -380,6 +408,7 @@ class SQLServerRepository:
             return columns, rows
 
     def list_taloes_by_year(self, ano):
+        """Retorna todos os taloes de um ano."""
         query = """
         SELECT *
         FROM dbo.taloes
@@ -394,6 +423,7 @@ class SQLServerRepository:
             return columns, rows
 
     def list_monitoramento_by_year(self, ano):
+        """Retorna todos os registros de monitoramento de um ano."""
         query = """
         SELECT m.*
         FROM dbo.monitoramento m
@@ -409,6 +439,7 @@ class SQLServerRepository:
             return columns, rows
 
     def postpone_monitoring(self, talao_id, intervalo_min):
+        """Posterga o proximo alerta de monitoramento de um talao."""
         with self._connect() as conn:
             cur = conn.cursor()
             cur.execute(

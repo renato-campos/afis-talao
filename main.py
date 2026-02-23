@@ -10,6 +10,7 @@ from afis_app.ui import AFISDashboard, build_root
 
 
 def _resolve_asset_path(path_value):
+    """Resolve caminho de asset relativo ao diretorio do projeto."""
     if not path_value:
         return None
     candidate = Path(path_value).expanduser()
@@ -20,6 +21,7 @@ def _resolve_asset_path(path_value):
 
 
 def _configure_app_icon(root):
+    """Configura o icone principal da aplicacao, se disponivel."""
     icon_path = _resolve_asset_path(get_env("APP_ICON_PATH"))
     if not icon_path or not icon_path.exists():
         return
@@ -38,6 +40,7 @@ def _configure_app_icon(root):
 
 
 def main():
+    """Inicializa configuracao, repositorio e loop principal da interface."""
     load_env_file()
     logging.basicConfig(
         filename="afis_app.log",

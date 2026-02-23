@@ -4,6 +4,7 @@ from .constants import FIELD_LABELS
 
 
 def _parse_date(value):
+    """Converte string de data aceitando DD/MM/AAAA ou AAAA-MM-DD."""
     for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
         try:
             return datetime.strptime(value, fmt)
@@ -13,6 +14,7 @@ def _parse_date(value):
 
 
 def normalize_and_validate(data, required_fields):
+    """Normaliza campos de data/hora e retorna lista de obrigatorios faltantes."""
     normalized = dict(data)
 
     for key in ["data_solic", "data_bo"]:

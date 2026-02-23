@@ -6,10 +6,14 @@ from afis_app.services import AlertaService, TalaoService
 
 
 class TalaoServiceTests(unittest.TestCase):
+    """Testes unitarios das regras de negocio de talao."""
+
     def setUp(self):
+        """Prepara instancia de servico para cada teste."""
         self.service = TalaoService()
 
     def _base_form_data(self):
+        """Retorna payload minimo valido para cenarios de criacao/edicao."""
         return {
             "delegacia": "1 DP",
             "autoridade": "DELEGADO A",
@@ -26,6 +30,7 @@ class TalaoServiceTests(unittest.TestCase):
         }
 
     def test_prepare_new_talao_sets_now_and_status(self):
+        """Valida preenchimento automatico de data/hora e status inicial."""
         form_data = self._base_form_data()
         now = datetime(2026, 2, 23, 14, 35)
 
@@ -38,6 +43,7 @@ class TalaoServiceTests(unittest.TestCase):
         self.assertEqual(STATUS_MONITORADO, normalized["status"])
 
     def test_prepare_update_talao_requires_fields_by_status(self):
+        """Valida obrigatoriedade adicional quando status e cancelado."""
         form_data = self._base_form_data()
         form_data["data_solic"] = "23/02/2026"
         form_data["hora_solic"] = "14:35"
@@ -48,6 +54,7 @@ class TalaoServiceTests(unittest.TestCase):
         self.assertIn("Observação", missing)
 
     def test_prepare_finalize_from_record_builds_valid_payload(self):
+        """Valida preparo de payload para finalizacao a partir de registro bruto."""
         record = {
             "delegacia": "1 DP",
             "autoridade": "DELEGADO A",
@@ -75,20 +82,26 @@ class TalaoServiceTests(unittest.TestCase):
 
 
 class AlertaServiceTests(unittest.TestCase):
+    """Testes unitarios das regras de alerta e status."""
+
     def setUp(self):
+        """Prepara instancia de servico para cada teste."""
         self.service = AlertaService()
 
     def test_is_edit_blocked_status(self):
+        """Garante bloqueio de edicao para status finalizado/cancelado."""
         self.assertTrue(self.service.is_edit_blocked_status(STATUS_FINALIZADO))
         self.assertTrue(self.service.is_edit_blocked_status(STATUS_CANCELADO))
         self.assertFalse(self.service.is_edit_blocked_status(STATUS_MONITORADO))
 
     def test_is_monitorado_case_insensitive(self):
+        """Garante identificacao de monitorado sem sensibilidade a caixa/espacos."""
         self.assertTrue(self.service.is_monitorado("monitorado"))
         self.assertTrue(self.service.is_monitorado(" MONITORADO "))
         self.assertFalse(self.service.is_monitorado("cancelado"))
 
     def test_build_monitoring_question_formats_talao_and_boletim(self):
+        """Garante montagem correta do texto de alerta de monitoramento."""
         text = self.service.build_monitoring_question(2026, 7, "")
 
         self.assertIn("0007/2026", text)
