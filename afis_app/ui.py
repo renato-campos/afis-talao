@@ -16,11 +16,8 @@ except ImportError:
     load_workbook = None
 
 from .constants import (
-    CANCEL_REQUIRED,
-    CREATE_REQUIRED,
     EDITABLE_FIELDS,
     FIELD_LABELS,
-    FINALIZE_REQUIRED,
     STATUS_CANCELADO,
     STATUS_FINALIZADO,
     STATUS_MONITORADO,
@@ -29,7 +26,7 @@ from .constants import (
 from .config import get_env
 from .interfaces import TalaoRepository
 from .repository import ConcurrencyError, DuplicateTalaoError
-from .validators import normalize_and_validate
+from .services import AlertaService, TalaoService
 
 logger = logging.getLogger(__name__)
 
@@ -139,9 +136,10 @@ def _build_button(parent, text, command, variant="neutral", use_ctk=False, width
 
 
 class TalaoEditor(tk.Toplevel):
-    def __init__(self, parent, repo: TalaoRepository, talao_id, intervalo_min, on_saved):
+    def __init__(self, parent, repo: TalaoRepository, talao_service: TalaoService, talao_id, intervalo_min, on_saved):
         super().__init__(parent)
         self.repo = repo
+        self.talao_service = talao_service
         self.talao_id = talao_id
         self.on_saved = on_saved
         self.title("Editar Talão")
@@ -398,17 +396,9 @@ class TalaoEditor(tk.Toplevel):
 
     def save(self):
         data = self._collect()
-        status = data["status"]
-
-        if status == STATUS_FINALIZADO:
-            required = FINALIZE_REQUIRED
-        elif status == STATUS_CANCELADO:
-            required = CANCEL_REQUIRED
-        else:
-            required = CREATE_REQUIRED
 
         try:
-            normalized, missing = normalize_and_validate(data, required)
+            normalized, missing = self.talao_service.prepare_update_talao(data)
         except ValueError as exc:
             messagebox.showwarning("Validacao", str(exc))
             return
@@ -915,6 +905,8 @@ class AFISDashboard:
     def __init__(self, root, repo: TalaoRepository):
         self.root = root
         self.repo = repo
+        self.talao_service = TalaoService()
+        self.alerta_service = AlertaService()
 
         self.root.title("Registro AFIS - CECOP")
         self.root.geometry("1080x760")
@@ -1231,13 +1223,9 @@ class AFISDashboard:
 
     def criar_talao(self):
         data = self._collect_form_data()
-        now = datetime.now()
-        data["data_solic"] = now.strftime("%d/%m/%Y")
-        data["hora_solic"] = now.strftime("%H:%M")
-        data["status"] = STATUS_MONITORADO
 
         try:
-            normalized, missing = normalize_and_validate(data, CREATE_REQUIRED)
+            normalized, missing, now = self.talao_service.prepare_new_talao(data)
         except ValueError as exc:
             messagebox.showwarning("Validação", str(exc))
             return
@@ -1269,13 +1257,13 @@ class AFISDashboard:
         item_id = selected[0]
         valores = self.tree.item(item_id).get("values", [])
         status_atual = str(valores[4]).strip().upper() if len(valores) >= 5 else ""
-        if status_atual in (STATUS_FINALIZADO, STATUS_CANCELADO):
+        if self.alerta_service.is_edit_blocked_status(status_atual):
             messagebox.showinfo("Info", "Talões finalizados ou cancelados não podem ser editados.")
             return
 
         talao_id = int(item_id)
         intervalo = self.intervalo_map.get(self.alerta_var.get(), DEFAULT_ALERT_INTERVAL_MIN)
-        TalaoEditor(self.root, self.repo, talao_id, intervalo, self.refresh_tree)
+        TalaoEditor(self.root, self.repo, self.talao_service, talao_id, intervalo, self.refresh_tree)
 
     def abrir_relatorios(self):
         RelatorioPeriodoWindow(self.root, self.repo)
@@ -1334,14 +1322,11 @@ class AFISDashboard:
         # e garantir foco no preenchimento/validação do talão em questão.
         for row in due_rows:
             talao_id, intervalo_min, ano, talao, boletim, status = row
-            if status != STATUS_MONITORADO:
+            if not self.alerta_service.is_monitorado(status):
                 continue
 
             self.root.bell()
-            pergunta = (
-                f"Talão {format_talao(ano, talao)} (Boletim: {boletim or 'sem boletim'}) segue monitorado.\n\n"
-                "As ações necessárias para encerrar o monitoramento já foram cumpridas?"
-            )
+            pergunta = self.alerta_service.build_monitoring_question(ano, talao, boletim)
             confirmar = messagebox.askyesno("Alerta de monitoramento", pergunta)
 
             try:
@@ -1361,28 +1346,12 @@ class AFISDashboard:
         if not record:
             return
 
-        data = {key: "" for key in EDITABLE_FIELDS}
-        for key in EDITABLE_FIELDS:
-            value = record.get(key)
-            if value is None:
-                data[key] = ""
-            elif key == "data_bo":
-                data[key] = value.strftime("%d/%m/%Y")
-            else:
-                data[key] = str(value)
-        data_solic = record.get("data_solic")
-        hora_solic = record.get("hora_solic")
-        data["data_solic"] = data_solic.strftime("%d/%m/%Y") if data_solic else ""
-        data["hora_solic"] = str(hora_solic)[:5] if hora_solic else ""
-
-        data["status"] = STATUS_FINALIZADO
-
         try:
-            normalized, missing = normalize_and_validate(data, FINALIZE_REQUIRED)
+            normalized, missing = self.talao_service.prepare_finalize_from_record(record)
         except ValueError as exc:
             messagebox.showwarning("Validação", str(exc))
             self.repo.postpone_monitoring(talao_id, intervalo_min)
-            TalaoEditor(self.root, self.repo, talao_id, intervalo_min, self.refresh_tree)
+            TalaoEditor(self.root, self.repo, self.talao_service, talao_id, intervalo_min, self.refresh_tree)
             return
 
         if missing:
@@ -1392,7 +1361,7 @@ class AFISDashboard:
                 + "\n- ".join(missing),
             )
             self.repo.postpone_monitoring(talao_id, intervalo_min)
-            TalaoEditor(self.root, self.repo, talao_id, intervalo_min, self.refresh_tree)
+            TalaoEditor(self.root, self.repo, self.talao_service, talao_id, intervalo_min, self.refresh_tree)
             return
 
         try:
