@@ -1267,7 +1267,7 @@ class AFISDashboard:
 
         item_id = selected[0]
         valores = self.tree.item(item_id).get("values", [])
-        status_atual = str(valores[4]).strip().lower() if len(valores) >= 5 else ""
+        status_atual = str(valores[4]).strip().upper() if len(valores) >= 5 else ""
         if status_atual in (STATUS_FINALIZADO, STATUS_CANCELADO):
             messagebox.showinfo("Info", "Talões finalizados ou cancelados não podem ser editados.")
             return

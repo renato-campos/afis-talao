@@ -93,7 +93,7 @@ class SQLServerRepository:
             if missing:
                 missing_sorted = ", ".join(sorted(missing))
                 raise DatabaseError(
-                    "Schema ausente no banco. Execute o arquivo schema.sql antes de iniciar o app. "
+                    "Schema ausente no banco. Execute o arquivo bd_scripts/schema_afis.sql antes de iniciar o app. "
                     f"Tabelas faltantes: {missing_sorted}."
                 )
 
@@ -218,7 +218,7 @@ class SQLServerRepository:
             if not row:
                 raise DatabaseError("Talão não encontrado para atualização.")
             ano_atual = self._to_int(row[0], "ano atual do talão")
-            status_atual = str(row[1]).strip().lower() if len(row) > 1 and row[1] is not None else ""
+            status_atual = str(row[1]).strip().upper() if len(row) > 1 and row[1] is not None else ""
             if status_atual in (STATUS_FINALIZADO, STATUS_CANCELADO):
                 raise DatabaseError("Talões finalizados ou cancelados não podem ser editados.")
             if novo_ano != ano_atual:
