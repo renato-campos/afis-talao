@@ -448,6 +448,7 @@ class SQLServerRepository:
         """
         params = []
 
+        # Talão pode vir isolado (apenas número) ou combinado com ano.
         ano = filters.get("ano")
         talao_num = filters.get("talao_num")
         if ano is not None:
@@ -462,6 +463,7 @@ class SQLServerRepository:
             query += " AND CAST(t.data_solic AS DATE) = ?"
             params.append(data_solic)
 
+        # Filtros textuais usam LIKE case-insensitive para busca parcial.
         for field in ("delegacia", "boletim", "equipe", "operador"):
             value = str(filters.get(field) or "").strip()
             if value:

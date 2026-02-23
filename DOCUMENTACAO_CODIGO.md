@@ -37,7 +37,8 @@ O projeto segue uma arquitetura em camadas simples, com separacao por responsabi
 
 5. `afis_app/validators.py`:
 - normalizacao de data/hora;
-- validacao de campos obrigatorios.
+- validacao de campos obrigatorios;
+- validacao de formato do boletim.
 
 6. `afis_app/constants.py`:
 - status, listas de campos obrigatorios e labels.
@@ -142,7 +143,38 @@ Fluxo:
 - CSV (`gerar_csv`);
 - XLSX por template `assets/modelo.xlsx` (`gerar_modelo_xlsx`).
 
-## 4.6 Backup anual
+## 4.6 Busca de taloes (filtros combinados)
+
+Fluxo:
+
+1. Usuario clica em `Busca` no dashboard.
+2. Abre `BuscaTaloesWindow` com filtros:
+- talao;
+- ano;
+- delegacia;
+- boletim;
+- data;
+- equipe;
+- operador.
+3. Janela converte e valida filtros:
+- talao aceita `NNNN` ou `NNNN/AAAA`;
+- ano exige 4 digitos;
+- data aceita `DD/MM/AAAA` e `AAAA-MM-DD`.
+4. UI chama `repo.search_taloes(filters)`.
+5. Repositorio monta SQL dinamico com `AND` entre filtros.
+6. UI gera HTML temporario com todas as colunas retornadas e abre no navegador.
+
+## 4.7 Mensagem WhatsApp (template manual)
+
+Fluxo:
+
+1. Usuario seleciona um talao na grade.
+2. Usuario clica no icone `Zap`.
+3. UI busca o registro por `id` (`repo.get_talao`).
+4. UI monta mensagem padrao (`_build_whatsapp_message`).
+5. UI grava arquivo `.txt` temporario e abre no app padrao para copia/cola.
+
+## 4.8 Backup anual
 
 Fluxo:
 
@@ -191,7 +223,9 @@ Tabela `dbo.monitoramento`:
 - `get_talao`
 - `list_initial_taloes`
 - `list_due_monitoring`
+- `get_monitoring_interval`
 - `list_taloes_by_period`
+- `search_taloes`
 - `list_taloes_by_year`
 - `list_monitoramento_by_year`
 - `postpone_monitoring`
@@ -199,8 +233,10 @@ Tabela `dbo.monitoramento`:
 ## 6.4 `afis_app/validators.py`
 
 - `_parse_date(value)`: parse `dd/mm/yyyy` ou `yyyy-mm-dd`.
+- `_normalize_and_validate_boletim(value)`: valida padrao `AA0001..ZZ9999` com sufixo opcional `-1..-99`.
 - `normalize_and_validate(data, required_fields)`:
 - normaliza datas e hora para formato persistivel;
+- normaliza e valida boletim quando informado;
 - retorna `(normalized, missing)`.
 
 ## 6.5 `afis_app/services.py`
@@ -303,6 +339,15 @@ Classes:
 - `_build_insert_block`
 - `gerar_backup`
 
+`class BuscaTaloesWindow(tk.Toplevel)`:
+
+- `__init__`
+- `_parse_filters`
+- `_format_html_value`
+- `_build_result_html`
+- `buscar`
+- `limpar_campos`
+
 `class AFISDashboard`:
 
 - `__init__`
@@ -323,7 +368,9 @@ Classes:
 - `criar_talao`
 - `editar_selecionado`
 - `abrir_relatorios`
+- `abrir_busca`
 - `abrir_backup`
+- `gerar_mensagem_whatsapp_selecionado`
 - `refresh_tree`
 - `_auto_refresh`
 - `_has_active_modal`
@@ -343,6 +390,12 @@ Obrigatoriedade:
 - criacao: `CREATE_REQUIRED`;
 - finalizacao: `FINALIZE_REQUIRED`;
 - cancelamento: `CANCEL_REQUIRED`.
+
+Boletim:
+
+- obrigatorio em criacao, finalizacao e cancelamento;
+- formato aceito: `AA0001` ate `ZZ9999`;
+- sufixo opcional: `-1` ate `-99` (ex.: `AB1234-2`).
 
 Regra adicional de finalizacao:
 
@@ -385,6 +438,7 @@ Cobertura atual:
 - `TalaoService`:
 - preparacao de criacao;
 - obrigatoriedade por status em edicao;
+- validacao de formato de boletim;
 - preparacao de finalizacao.
 - `AlertaService`:
 - bloqueio de edicao por status;

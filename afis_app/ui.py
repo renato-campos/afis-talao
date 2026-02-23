@@ -1111,6 +1111,7 @@ class BuscaTaloesWindow(tk.Toplevel):
         if ano_txt:
             if not re.fullmatch(r"\d{4}", ano_txt):
                 raise ValueError("Ano inválido. Use 4 dígitos (ex.: 2026).")
+            # Quando talão vier como NNNN/AAAA, o ano digitado aqui pode sobrescrever o filtro.
             filters["ano"] = int(ano_txt)
 
         data_txt = values["data"]
@@ -1425,6 +1426,7 @@ class AFISDashboard:
 
         botoes = tk.Frame(form, bg=UI_THEME["surface"])
         botoes.grid(row=row, column=0, columnspan=4, sticky="ew", padx=4, pady=8)
+        # Distribui os botões em uma única linha com colunas de largura uniforme.
         self._build_button(botoes, "Salvar", self.criar_talao, "success").grid(row=0, column=0, padx=3, sticky="ew")
         self._build_button(botoes, "Editar", self.editar_selecionado, "primary").grid(row=0, column=1, padx=3, sticky="ew")
         self._build_button(botoes, "Atualizar", self.refresh_tree, "neutral").grid(row=0, column=2, padx=3, sticky="ew")
