@@ -10,6 +10,7 @@ CREATE_REQUIRED = [
     "autoridade",
     "solicitante",
     "endereco",
+    "boletim",
     "operador",
     "status",
 ]
@@ -37,6 +38,7 @@ CANCEL_REQUIRED = [
     "autoridade",
     "solicitante",
     "endereco",
+    "boletim",
     "operador",
     "status",
     "observacao",

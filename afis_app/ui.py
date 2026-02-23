@@ -1,10 +1,12 @@
 import tkinter as tk
 import csv
 import logging
+import os
 import sys
 import webbrowser
 from datetime import date, datetime, time
 from pathlib import Path
+from tempfile import gettempdir
 from tkinter import filedialog, messagebox, ttk
 
 try:
@@ -64,6 +66,7 @@ BUTTON_FONT_BOLD = ("Segoe UI", 11, "bold")
 WATERMARK_MAX_WIDTH = 2560
 WATERMARK_MAX_HEIGHT = 1440
 HELP_ICON_SIZE_PX = 24
+WHATSAPP_ICON_SIZE_PX = 56
 
 ALERT_INTERVAL_OPTIONS = [
     ("1 min", 1),
@@ -1009,6 +1012,7 @@ class AFISDashboard:
         self.watermark_image = None
         self.watermark_label = None
         self.help_icon_image = None
+        self.whatsapp_icon_image = None
         self.data_bo_placeholder_active = False
         self.proximo_talao_var = tk.StringVar(value="-")
         self.alerta_var = tk.StringVar(value=DEFAULT_ALERT_INTERVAL_LABEL)
@@ -1194,6 +1198,29 @@ class AFISDashboard:
         self._build_button(botoes, "Limpar", self._set_defaults, "neutral").pack(side="left", padx=4)
         self._build_button(botoes, "Relatórios", self.abrir_relatorios, "warning").pack(side="left", padx=4)
         self._build_button(botoes, "Backup", self.abrir_backup, "danger").pack(side="left", padx=4)
+        self.whatsapp_icon_image = self._load_whatsapp_icon()
+        if self.whatsapp_icon_image is not None:
+            tk.Button(
+                botoes,
+                image=self.whatsapp_icon_image,
+                command=self.gerar_mensagem_whatsapp_selecionado,
+                bg=UI_THEME["surface"],
+                activebackground=UI_THEME["surface_hover"],
+                relief="flat",
+                borderwidth=1,
+                highlightthickness=1,
+                highlightbackground=UI_THEME["border"],
+                cursor="hand2",
+                padx=6,
+                pady=4,
+            ).pack(side="left", padx=4)
+        else:
+            self._build_button(
+                botoes,
+                "WhatsApp",
+                self.gerar_mensagem_whatsapp_selecionado,
+                "neutral",
+            ).pack(side="left", padx=4)
 
         for col_idx in (1, 3):
             form.grid_columnconfigure(col_idx, weight=1)
@@ -1318,6 +1345,26 @@ class AFISDashboard:
             logger.warning("Falha ao carregar icone de ajuda em %s", icon_path, exc_info=True)
             return None
 
+    def _load_whatsapp_icon(self):
+        """Carrega icone do botao de mensagem WhatsApp."""
+        icon_path = self._resolve_asset_path("assets/ZAP.png")
+        if not icon_path or not icon_path.exists():
+            return None
+        try:
+            image = tk.PhotoImage(file=str(icon_path))
+            width = image.width()
+            height = image.height()
+            if width > 0 and height > 0:
+                width_ratio = (width + WHATSAPP_ICON_SIZE_PX - 1) // WHATSAPP_ICON_SIZE_PX
+                height_ratio = (height + WHATSAPP_ICON_SIZE_PX - 1) // WHATSAPP_ICON_SIZE_PX
+                scale = max(1, width_ratio, height_ratio)
+                if scale > 1:
+                    image = image.subsample(scale, scale)
+            return image
+        except Exception:
+            logger.warning("Falha ao carregar icone WhatsApp em %s", icon_path, exc_info=True)
+            return None
+
     def _setup_watermark(self):
         """Posiciona marca d'agua no fundo da janela principal."""
         self.watermark_image = self._load_watermark_image()
@@ -1402,6 +1449,39 @@ class AFISDashboard:
         except Exception:
             self.proximo_talao_var.set("indisponível")
 
+    def _format_message_value(self, value):
+        """Normaliza valor para exibicao no template de mensagem."""
+        if value is None:
+            return "-"
+        text = str(value).strip()
+        return text if text else "-"
+
+    def _build_whatsapp_message(self, ano, talao, data):
+        """Monta mensagem padrao para compartilhamento no WhatsApp."""
+        lines = [
+            "*NOVO TALÃO*\n",
+            f"*TALÃO:{format_talao(ano, talao)}*",
+            f"*DELEGACIA:* {self._format_message_value(data.get('delegacia'))}",
+            f"*AUTORIDADE:* {self._format_message_value(data.get('autoridade'))}",
+            f"*ENDERECO:* {self._format_message_value(data.get('endereco'))}",
+            f"*BOLETIM:* {self._format_message_value(data.get('boletim'))}",
+            f"*NATUREZA:* {self._format_message_value(data.get('natureza'))}",
+            f"*OBSERVACAO:* {self._format_message_value(data.get('observacao'))}",
+        ]
+        return "\n".join(lines)
+
+    def _open_message_text(self, titulo, conteudo):
+        """Gera arquivo de texto temporario e abre no app padrao para copia."""
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"{titulo}_{stamp}.txt"
+        file_path = Path(gettempdir()) / file_name
+        file_path.write_text(conteudo, encoding="utf-8")
+
+        if sys.platform.startswith("win"):
+            os.startfile(str(file_path))  # type: ignore[attr-defined]
+            return
+        webbrowser.open(file_path.as_uri())
+
     def criar_talao(self):
         """Processa criacao de novo talao a partir do formulario principal."""
         data = self._collect_form_data()
@@ -1465,6 +1545,25 @@ class AFISDashboard:
     def abrir_backup(self):
         """Abre janela modal de backup anual."""
         BackupAnoWindow(self.root, self.repo)
+
+    def gerar_mensagem_whatsapp_selecionado(self):
+        """Gera template de mensagem WhatsApp para o talao selecionado."""
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("Info", "Selecione um talão na lista.")
+            return
+
+        talao_id = int(selected[0])
+        try:
+            record = self.repo.get_talao(talao_id)
+            if not record:
+                messagebox.showwarning("WhatsApp", "Talão não encontrado para gerar mensagem.")
+                return
+            mensagem = self._build_whatsapp_message(record.get("ano"), record.get("talao"), record)
+            self._open_message_text("mensagem_whatsapp_talao", mensagem)
+        except Exception:
+            logger.exception("Falha ao gerar mensagem WhatsApp do talão %s", talao_id)
+            messagebox.showerror("Erro", "Falha ao gerar mensagem para WhatsApp.")
 
     def refresh_tree(self, silent=False):
         """Recarrega a grade principal com os taloes visiveis."""

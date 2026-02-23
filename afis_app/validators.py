@@ -1,6 +1,9 @@
 from datetime import datetime
+import re
 
 from .constants import FIELD_LABELS
+
+BOLETIM_PATTERN = re.compile(r"^([A-Z]{2})(\d{4})(?:-([1-9]\d?))?$")
 
 
 def _parse_date(value):
@@ -11,6 +14,22 @@ def _parse_date(value):
         except ValueError:
             continue
     raise ValueError
+
+
+def _normalize_and_validate_boletim(value):
+    """Valida codificacao do boletim: AA0001..ZZ9999 com sufixo opcional -1..-99."""
+    boletim = str(value or "").strip().upper()
+    match = BOLETIM_PATTERN.fullmatch(boletim)
+    if not match:
+        raise ValueError(
+            "Campo Boletim inválido. Use o formato AA0001 até ZZ9999, com sufixo opcional -1 até -99."
+        )
+    numeracao = int(match.group(2))
+    if numeracao < 1:
+        raise ValueError(
+            "Campo Boletim inválido. Use o formato AA0001 até ZZ9999, com sufixo opcional -1 até -99."
+        )
+    return boletim
 
 
 def normalize_and_validate(data, required_fields):
@@ -29,6 +48,10 @@ def normalize_and_validate(data, required_fields):
             normalized["hora_solic"] = datetime.strptime(normalized["hora_solic"], "%H:%M").strftime("%H:%M")
         except ValueError as exc:
             raise ValueError("Campo Hora Solicitação inválido. Use HH:MM.") from exc
+
+    boletim = normalized.get("boletim")
+    if boletim is not None and str(boletim).strip():
+        normalized["boletim"] = _normalize_and_validate_boletim(boletim)
 
     missing = []
     for field in required_fields:
