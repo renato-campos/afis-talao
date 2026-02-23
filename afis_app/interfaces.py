@@ -45,6 +45,10 @@ class TalaoRepository(Protocol):
         """Retorna colunas e linhas de taloes dentro de um periodo."""
         ...
 
+    def search_taloes(self, filters: dict[str, Any]) -> tuple[list[str], list[Any]]:
+        """Pesquisa taloes aplicando filtros combinados por E."""
+        ...
+
     def list_taloes_by_year(self, ano: int) -> tuple[list[str], list[Any]]:
         """Retorna colunas e linhas de taloes de um ano especifico."""
         ...

@@ -420,6 +420,63 @@ class SQLServerRepository:
             columns = [d[0] for d in cur.description]
             return columns, rows
 
+    def search_taloes(self, filters):
+        """Pesquisa taloes por filtros combinados com operador AND."""
+        query = """
+        SELECT
+            t.id,
+            t.ano,
+            t.talao,
+            t.data_solic,
+            t.hora_solic,
+            t.delegacia,
+            t.autoridade,
+            t.solicitante,
+            t.endereco,
+            t.boletim,
+            t.natureza,
+            t.data_bo,
+            t.vitimas,
+            t.equipe,
+            t.operador,
+            t.status,
+            t.observacao,
+            t.criado_em,
+            t.atualizado_em
+        FROM dbo.taloes t
+        WHERE 1 = 1
+        """
+        params = []
+
+        ano = filters.get("ano")
+        talao_num = filters.get("talao_num")
+        if ano is not None:
+            query += " AND t.ano = ?"
+            params.append(ano)
+        if talao_num is not None:
+            query += " AND t.talao = ?"
+            params.append(talao_num)
+
+        data_solic = filters.get("data_solic")
+        if data_solic is not None:
+            query += " AND CAST(t.data_solic AS DATE) = ?"
+            params.append(data_solic)
+
+        for field in ("delegacia", "boletim", "equipe", "operador"):
+            value = str(filters.get(field) or "").strip()
+            if value:
+                query += f" AND UPPER(ISNULL(t.{field}, '')) LIKE ?"
+                params.append(f"%{value.upper()}%")
+
+        query += " ORDER BY t.ano DESC, t.talao DESC, t.id DESC;"
+
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, *params)
+            rows = cur.fetchall()
+            columns = [d[0] for d in cur.description]
+            return columns, rows
+
     def list_taloes_by_year(self, ano):
         """Retorna todos os taloes de um ano."""
         query = """
