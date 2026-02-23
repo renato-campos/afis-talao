@@ -1445,7 +1445,9 @@ class AFISDashboard:
             return
 
         talao_id = int(item_id)
-        intervalo = self.intervalo_map.get(self.alerta_var.get(), DEFAULT_ALERT_INTERVAL_MIN)
+        intervalo = self.repo.get_monitoring_interval(talao_id)
+        if intervalo is None:
+            intervalo = DEFAULT_ALERT_INTERVAL_MIN
         TalaoEditor(
             self.root,
             self.repo,

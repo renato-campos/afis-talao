@@ -373,6 +373,19 @@ class SQLServerRepository:
             cur.execute(query)
             return cur.fetchall()
 
+    def get_monitoring_interval(self, talao_id):
+        """Retorna intervalo de monitoramento para um talao, quando existir."""
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT intervalo_min FROM dbo.monitoramento WHERE talao_id = ?",
+                talao_id,
+            )
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                return None
+            return self._to_int(row[0], "intervalo de monitoramento")
+
     def list_taloes_by_period(self, data_inicio, data_fim):
         """Retorna dados detalhados de taloes entre duas datas."""
         query = """
