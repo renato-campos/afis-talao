@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>MANUAL_USUARIO.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="manual-do-usuario---sistema-afis-talao">Manual do Usuario - Sistema AFIS Talao</h1>
+<h2 id="1-para-que-serve-o-sistema">1. Para que serve o sistema</h2>
+<p>O sistema AFIS Talao e usado para registrar, acompanhar e encerrar taloes de forma digital.</p>
+<p>Com ele, voce consegue:</p>
+<ul>
+<li>abrir novos taloes;</li>
+<li>acompanhar taloes em monitoramento;</li>
+<li>receber alertas periodicos;</li>
+<li>editar taloes em andamento;</li>
+<li>gerar relatorios por periodo;</li>
+<li>gerar backup anual.</li>
+</ul>
+<h2 id="2-fluxo-rapido-de-uso-dia-a-dia">2. Fluxo rapido de uso (dia a dia)</h2>
+<p>Use esta sequencia como referencia:</p>
+<ol>
+<li>Abra o sistema.</li>
+<li>Preencha os dados do novo talao e clique em <code>Salvar</code>.</li>
+<li>Acompanhe a lista de taloes na parte inferior da tela.</li>
+<li>Quando houver atualizacao, selecione o talao e clique em <code>Editar</code>.</li>
+<li>Responda os alertas quando aparecerem.</li>
+<li>Gere relatorios quando precisar encaminhar resultados.</li>
+<li>Gere backup periodico para seguranca dos dados.</li>
+</ol>
+<h2 id="3-tela-principal-o-que-cada-parte-faz">3. Tela principal (o que cada parte faz)</h2>
+<h3 id="31-formulario-de-abertura">3.1 Formulario de abertura</h3>
+<p>Na parte superior da tela voce informa os dados do atendimento:</p>
+<ul>
+<li>Delegacia</li>
+<li>Autoridade</li>
+<li>Solicitante</li>
+<li>Endereco</li>
+<li>Boletim</li>
+<li>Natureza</li>
+<li>Data BO</li>
+<li>Vitimas</li>
+<li>Equipe</li>
+<li>Operador</li>
+<li>Observacao</li>
+</ul>
+<p>Tambem aparecem:</p>
+<ul>
+<li><code>Proximo Talao</code> do ano atual;</li>
+<li><code>Alerta (min)</code> para definir o intervalo do monitoramento.</li>
+</ul>
+<h3 id="32-botoes-principais">3.2 Botoes principais</h3>
+<ul>
+<li><code>Salvar</code>: abre um novo talao com status monitorado.</li>
+<li><code>Editar</code>: altera um talao selecionado na lista.</li>
+<li><code>Atualizar</code>: recarrega a lista de taloes visiveis.</li>
+<li><code>Limpar</code>: limpa o formulario para novo preenchimento.</li>
+<li><code>Relatorios</code>: abre a janela de exportacao por periodo.</li>
+<li><code>Backup</code>: abre a janela de backup por ano.</li>
+</ul>
+<h3 id="33-lista-de-taloes-visiveis">3.3 Lista de taloes visiveis</h3>
+<p>A lista mostra:</p>
+<ul>
+<li>Talao</li>
+<li>Boletim</li>
+<li>Delegacia</li>
+<li>Natureza</li>
+<li>Status</li>
+</ul>
+<p>Cores de apoio:</p>
+<ul>
+<li>monitorado: amarelo</li>
+<li>finalizado: verde</li>
+<li>cancelado: vermelho</li>
+</ul>
+<h2 id="4-como-abrir-um-novo-talao">4. Como abrir um novo talao</h2>
+<ol>
+<li>Preencha os campos do formulario.</li>
+<li>Escolha o intervalo em <code>Alerta (min)</code>.</li>
+<li>Clique em <code>Salvar</code>.</li>
+</ol>
+<p>O sistema preenche automaticamente:</p>
+<ul>
+<li>data da solicitacao;</li>
+<li>hora da solicitacao;</li>
+<li>status inicial como <code>MONITORADO</code>;</li>
+<li>numero sequencial do talao no ano atual.</li>
+</ul>
+<h2 id="5-como-editar-um-talao">5. Como editar um talao</h2>
+<ol>
+<li>Selecione um talao na lista.</li>
+<li>Clique em <code>Editar</code>.</li>
+<li>Ajuste os campos necessarios.</li>
+<li>Clique em <code>Salvar</code>.</li>
+</ol>
+<p>Importante:</p>
+<ul>
+<li>taloes <code>FINALIZADO</code> e <code>CANCELADO</code> nao podem ser editados;</li>
+<li>se outro terminal tiver salvo alteracoes antes, o sistema pode avisar conflito.</li>
+</ul>
+<h2 id="6-status-do-talao-quando-usar-cada-um">6. Status do talao (quando usar cada um)</h2>
+<ul>
+<li><code>MONITORADO</code>: talao ainda em acompanhamento.</li>
+<li><code>FINALIZADO</code>: atendimento encerrado com dados completos.</li>
+<li><code>CANCELADO</code>: talao encerrado por cancelamento (com justificativa em observacao).</li>
+</ul>
+<p>Campos obrigatorios por status:</p>
+<ul>
+<li>Monitorado: dados basicos de abertura.</li>
+<li>Finalizado: dados basicos + boletim + natureza + data BO + vitimas + equipe.</li>
+<li>Cancelado: dados basicos + observacao.</li>
+</ul>
+<p>Padrao de preenchimento:</p>
+<ul>
+<li>data: <code>dd/mm/aaaa</code></li>
+<li>hora: <code>HH:MM</code></li>
+</ul>
+<h2 id="7-alertas-de-monitoramento-como-responder">7. Alertas de monitoramento (como responder)</h2>
+<p>Quando um talao monitorado atinge o horario de alerta, aparece uma pergunta de confirmacao:</p>
+<ul>
+<li>Se responder <code>Sim</code>: o sistema tenta finalizar automaticamente.</li>
+<li>Se faltar informacao obrigatoria para finalizar: o talao e aberto para complementar.</li>
+<li>Se responder <code>Nao</code>: o proximo alerta e adiado conforme o intervalo definido.</li>
+</ul>
+<h2 id="8-relatorios-passo-a-passo">8. Relatorios (passo a passo)</h2>
+<ol>
+<li>Clique em <code>Relatorios</code>.</li>
+<li>Informe <code>Data inicio</code> e <code>Data fim</code>.</li>
+<li>Escolha:
+<ul>
+<li><code>CSV</code> para planilha simples;</li>
+<li><code>Excel</code> para exportar no modelo padrao do setor.</li>
+</ul>
+</li>
+<li>Escolha a pasta e salve o arquivo.</li>
+</ol>
+<p>Observacao:</p>
+<ul>
+<li>o periodo considera a data de solicitacao do talao.</li>
+</ul>
+<h2 id="9-backup-anual-passo-a-passo">9. Backup anual (passo a passo)</h2>
+<ol>
+<li>Clique em <code>Backup</code>.</li>
+<li>Informe o ano de referencia.</li>
+<li>Clique em <code>Backup SQL</code>.</li>
+<li>Escolha onde salvar.</li>
+</ol>
+<p>O arquivo gerado contem os registros daquele ano para restauracao futura e/ ou auditoria, se necessario.</p>
+<h2 id="10-boas-praticas-de-operacao">10. Boas praticas de operacao</h2>
+<ul>
+<li>Preencha os dados essenciais no momento da abertura.</li>
+<li>Nao deixe alerta acumulado sem resposta.</li>
+<li>Atualize o status de acordo com a situacao real.</li>
+<li>Gere relatorio com frequencia definida pela equipe.</li>
+<li>Gere backup regularmente e guarde copia em local seguro.</li>
+</ul>
+<h2 id="11-duvidas-comuns-solucao-rapida">11. Duvidas comuns (solucao rapida)</h2>
+<ul>
+<li><strong>Nao abre o sistema</strong>: acione o suporte para validar conexao e configuracao.</li>
+<li><strong>Nao consigo salvar/finalizar</strong>: revise campos obrigatorios e formato de data/hora.</li>
+<li><strong>Talao nao aparece na lista</strong>: clique em <code>Atualizar</code>.</li>
+<li><strong>Conflito ao salvar edicao</strong>: recarregue a lista e tente novamente.</li>
+<li><strong>Excel nao gera</strong>: acione o suporte para validar componentes do ambiente.</li>
+</ul>
+
+</body>
+</html>

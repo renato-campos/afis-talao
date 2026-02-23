@@ -1,6 +1,8 @@
 import tkinter as tk
 import csv
 import logging
+import sys
+import webbrowser
 from datetime import date, datetime, time
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -61,6 +63,7 @@ UI_THEME = {
 BUTTON_FONT_BOLD = ("Segoe UI", 11, "bold")
 WATERMARK_MAX_WIDTH = 2560
 WATERMARK_MAX_HEIGHT = 1440
+HELP_ICON_SIZE_PX = 24
 
 ALERT_INTERVAL_OPTIONS = [
     ("1 min", 1),
@@ -1005,6 +1008,7 @@ class AFISDashboard:
         self.widgets = {}
         self.watermark_image = None
         self.watermark_label = None
+        self.help_icon_image = None
         self.data_bo_placeholder_active = False
         self.proximo_talao_var = tk.StringVar(value="-")
         self.alerta_var = tk.StringVar(value=DEFAULT_ALERT_INTERVAL_LABEL)
@@ -1037,14 +1041,47 @@ class AFISDashboard:
 
     def _build_layout(self):
         """Monta layout completo do dashboard principal."""
+        header = tk.Frame(self.root, bg=UI_THEME["bg"])
+        header.pack(fill="x", padx=12, pady=(14, 10))
+        header.grid_columnconfigure(0, weight=1)
+        header.grid_columnconfigure(1, weight=0)
+        header.grid_columnconfigure(2, weight=1)
+
         titulo = tk.Label(
-            self.root,
+            header,
             text="Registro Digital de Talões AFIS",
             font=("Segoe UI", 20, "bold"),
             bg=UI_THEME["bg"],
             fg=UI_THEME["white"],
         )
-        titulo.pack(pady=(14, 10))
+        titulo.grid(row=0, column=1)
+
+        self.help_icon_image = self._load_help_icon()
+        if self.help_icon_image is not None:
+            ajuda_btn = tk.Button(
+                header,
+                image=self.help_icon_image,
+                command=self.abrir_manual_usuario,
+                bg=UI_THEME["bg"],
+                activebackground=UI_THEME["bg"],
+                borderwidth=0,
+                highlightthickness=0,
+                cursor="hand2",
+            )
+        else:
+            ajuda_btn = tk.Button(
+                header,
+                text="?",
+                command=self.abrir_manual_usuario,
+                font=("Segoe UI", 12, "bold"),
+                bg=UI_THEME["neutral"],
+                fg=UI_THEME["text"],
+                activebackground=UI_THEME["neutral_hover"],
+                borderwidth=0,
+                cursor="hand2",
+                width=3,
+            )
+        ajuda_btn.grid(row=0, column=2, sticky="e")
 
         form = ttk.LabelFrame(self.root, text="Abertura de Talão", style="AFIS.TLabelframe", padding=12)
         form.pack(fill="x", padx=12, pady=6)
@@ -1261,6 +1298,26 @@ class AFISDashboard:
             logger.warning("Falha ao carregar imagem da marca d'água em %s", image_path, exc_info=True)
             return None
 
+    def _load_help_icon(self):
+        """Carrega icone do botao de ajuda no topo da interface."""
+        icon_path = self._resolve_asset_path("assets/help.png")
+        if not icon_path or not icon_path.exists():
+            return None
+        try:
+            image = tk.PhotoImage(file=str(icon_path))
+            width = image.width()
+            height = image.height()
+            if width > 0 and height > 0:
+                width_ratio = (width + HELP_ICON_SIZE_PX - 1) // HELP_ICON_SIZE_PX
+                height_ratio = (height + HELP_ICON_SIZE_PX - 1) // HELP_ICON_SIZE_PX
+                scale = max(1, width_ratio, height_ratio)
+                if scale > 1:
+                    image = image.subsample(scale, scale)
+            return image
+        except Exception:
+            logger.warning("Falha ao carregar icone de ajuda em %s", icon_path, exc_info=True)
+            return None
+
     def _setup_watermark(self):
         """Posiciona marca d'agua no fundo da janela principal."""
         self.watermark_image = self._load_watermark_image()
@@ -1283,6 +1340,28 @@ class AFISDashboard:
                     raw = widget.get().strip()
             data[key] = _normalize_user_text(raw, key)
         return data
+
+    def abrir_manual_usuario(self):
+        """Abre o manual do usuario no navegador padrao do sistema."""
+        candidates = [self._resolve_asset_path("MANUAL_USUARIO.html"), Path.cwd() / "MANUAL_USUARIO.html"]
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            candidates.insert(0, Path(meipass) / "MANUAL_USUARIO.html")
+        candidates.insert(1, Path(sys.executable).resolve().parent / "MANUAL_USUARIO.html")
+
+        manual_path = next((p for p in candidates if p and p.exists()), None)
+        if manual_path is None:
+            messagebox.showerror(
+                "Manual não encontrado",
+                "Não foi possível localizar o arquivo MANUAL_USUARIO.html.",
+            )
+            return
+
+        try:
+            webbrowser.open_new_tab(manual_path.resolve().as_uri())
+        except Exception:
+            logger.exception("Falha ao abrir manual do usuario em %s", manual_path)
+            messagebox.showerror("Erro", "Não foi possível abrir o manual no navegador padrão.")
 
     def _bind_data_bo_placeholder(self, widget):
         """Vincula eventos de placeholder ao campo data BO principal."""
