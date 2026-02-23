@@ -908,7 +908,7 @@ class BackupAnoWindow(tk.Toplevel):
 
 
 class AFISDashboard:
-    ALERT_POLL_MS = 60000
+    ALERT_POLL_MS = 30000
     AUTO_REFRESH_MS = 60000
 
     def __init__(self, root, repo):
@@ -1310,10 +1310,22 @@ class AFISDashboard:
         self.refresh_tree(silent=True)
         self.root.after(self.AUTO_REFRESH_MS, self._auto_refresh)
 
+    def _has_active_modal(self):
+        for child in self.root.winfo_children():
+            if isinstance(child, tk.Toplevel) and child.winfo_exists():
+                if child.grab_current() is child:
+                    return True
+        return False
+
     def processar_alertas(self):
+        if self._has_active_modal():
+            self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
+            return
+
         try:
             due_rows = self.repo.list_due_monitoring()
         except Exception:
+            logger.exception("Falha ao consultar alertas de monitoramento")
             self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
             return
 
@@ -1331,10 +1343,14 @@ class AFISDashboard:
             )
             confirmar = messagebox.askyesno("Alerta de monitoramento", pergunta)
 
-            if confirmar:
-                self._tentar_finalizar_por_alerta(talao_id, intervalo_min)
-            else:
-                self.repo.postpone_monitoring(talao_id, intervalo_min)
+            try:
+                if confirmar:
+                    self._tentar_finalizar_por_alerta(talao_id, intervalo_min)
+                else:
+                    self.repo.postpone_monitoring(talao_id, intervalo_min)
+            except Exception:
+                logger.exception("Falha ao processar alerta do talão %s", talao_id)
+                messagebox.showerror("Erro", "Falha ao processar alerta de monitoramento.")
             break
 
         self.root.after(self.ALERT_POLL_MS, self.processar_alertas)
