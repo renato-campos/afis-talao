@@ -4,6 +4,7 @@ import re
 from .constants import FIELD_LABELS
 
 BOLETIM_PATTERN = re.compile(r"^([A-Z]{2})(\d{4})(?:-([1-9]\d?))?$")
+BOLETIM_EXCEPTIONS = {"NÃO INFORMADO", "NAO INFORMADO"}
 
 
 def _parse_date(value):
@@ -19,6 +20,8 @@ def _parse_date(value):
 def _normalize_and_validate_boletim(value):
     """Valida codificacao do boletim: AA0001..ZZ9999 com sufixo opcional -1..-99."""
     boletim = str(value or "").strip().upper()
+    if boletim in BOLETIM_EXCEPTIONS:
+        return "NÃO INFORMADO"
     match = BOLETIM_PATTERN.fullmatch(boletim)
     if not match:
         raise ValueError(

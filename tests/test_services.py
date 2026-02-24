@@ -75,6 +75,18 @@ class TalaoServiceTests(unittest.TestCase):
         self.assertEqual([], missing)
         self.assertEqual("CD0001-99", normalized["boletim"])
 
+    def test_prepare_update_talao_accepts_boletim_nao_informado(self):
+        """Valida aceitacao da excecao textual para boletim."""
+        form_data = self._base_form_data()
+        form_data["data_solic"] = "23/02/2026"
+        form_data["hora_solic"] = "14:35"
+        form_data["boletim"] = "não informado"
+
+        normalized, missing = self.service.prepare_update_talao(form_data)
+
+        self.assertEqual([], missing)
+        self.assertEqual("NÃO INFORMADO", normalized["boletim"])
+
     def test_prepare_finalize_from_record_builds_valid_payload(self):
         """Valida preparo de payload para finalizacao a partir de registro bruto."""
         record = {

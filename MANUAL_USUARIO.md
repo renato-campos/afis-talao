@@ -118,7 +118,7 @@ Padrao de preenchimento:
 
 - data: `dd/mm/aaaa`
 - hora: `HH:MM`
-- boletim: `AA0001` ate `ZZ9999`, com sufixo opcional `-1` ate `-99` (ex.: `AB1234` ou `AB1234-2`)
+- boletim: `AA0001` ate `ZZ9999`, com sufixo opcional `-1` ate `-99` (ex.: `AB1234` ou `AB1234-2`), ou o texto `NÃO INFORMADO` (tambem aceito: `NAO INFORMADO`)
 
 ## 7. Alertas de monitoramento (como responder)
 
@@ -187,7 +187,7 @@ O arquivo gerado contem os registros daquele ano para restauracao futura e/ ou a
 ## 13. Duvidas comuns (solucao rapida)
 
 - **Nao abre o sistema**: acione o suporte para validar conexao e configuracao.
-- **Nao consigo salvar/finalizar**: revise campos obrigatorios e formato de data/hora/boletim.
+- **Nao consigo salvar/finalizar**: revise campos obrigatorios e formato de data/hora/boletim (ou use `NÃO INFORMADO` quando aplicavel).
 - **Talao nao aparece na lista**: clique em `Atualizar`.
 - **Conflito ao salvar edicao**: recarregue a lista e tente novamente.
 - **Busca nao retornou dados**: revise filtros e lembre que multiplos campos usam condicao `E`.
